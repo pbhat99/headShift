@@ -1,0 +1,284 @@
+Group {
+ inputs 0
+ name Write
+ knobChanged "n = nuke.thisNode()\nk = nuke.thisKnob()\n\n\ndef ass():\n    if k.name() == \"type\":\n        if k.value() == \"comp\":\n            nuke.thisNode()\['des'].setValue(nuke.thisNode()\['assignment'].getValue())\n            n.knob('descriptor').setVisible(False)\n            n.knob('exr_box').setVisible(True)\n            n.knob('mov_box').setVisible(True)\n            \n        else:\n            nuke.thisNode()\['des'].setValue(nuke.thisNode()\['descriptor'].getValue())\n            n.knob('descriptor').setVisible(True)\n            n.knob('exr_box').setVisible(False)\n            n.knob('mov_box').setVisible(False)\n            \n    if k.name() == \"descriptor\":\n        des()\n\ndef des():\n    if k.name() == \"descriptor\":\n        nuke.thisNode()\['des'].setValue(nuke.thisNode()\['descriptor'].getValue())\n        \nass()\n\nnuke.thisNode()\['file'].setValue(nuke.thisNode()\['path_builder'].getValue())"
+ tile_color 0xff7f00ff
+ label "\[value newcompname]"
+ selected true
+ addUserKnob {20 Write}
+ addUserKnob {4 type l "Render Type" M {comp precomp}}
+ addUserKnob {6 exr_box l exr +STARTLINE}
+ exr_box true
+ addUserKnob {6 mov_box l mov -STARTLINE}
+ addUserKnob {1 descriptor l Descriptor +HIDDEN}
+ addUserKnob {26 ""}
+ addUserKnob {41 channels T EXR.channels}
+ addUserKnob {41 out_colorspace l output T OCIOColorSpace1.out_colorspace}
+ addUserKnob {26 ""}
+ addUserKnob {20 AdvancedEXR l "Advanced EXR settings" n 1}
+ AdvancedEXR 0
+ addUserKnob {41 datatype T EXR.datatype}
+ addUserKnob {41 compression T EXR.compression}
+ addUserKnob {41 heroview T EXR.heroview}
+ addUserKnob {41 metadata T EXR.metadata}
+ addUserKnob {41 interleave T EXR.interleave}
+ addUserKnob {20 endGroup n -1}
+ addUserKnob {26 ""}
+ addUserKnob {20 AdvancedMOV l "Advance MOV Settings" n 1}
+ AdvancedMOV 0
+ addUserKnob {41 format l "output format" T Reformat1.format}
+ addUserKnob {41 out_colorspace_1 l output T OCIOColorSpace2.out_colorspace}
+ addUserKnob {41 mov_prores_codec_profile l "Codec Profile" T Write1.mov_prores_codec_profile}
+ addUserKnob {41 mov64_fps l FPS T Write1.mov64_fps}
+ addUserKnob {26 ""}
+ addUserKnob {68 arrilut l "ARRI LUT" M {"No ARRI LUT" ARRI_LogC2Video_Classic709 ARRI_LogC2Video_709 ARRI_LogC2Video_P3DCI ARRI_LogC2Video_2020 ARRI_LogC2Video_P3D60 ARRI_LogC2Video_P3D65 "" "" ""}}
+ addUserKnob {6 qt l "QT Checker" -STARTLINE}
+ addUserKnob {20 endGroup_1 n -1}
+ addUserKnob {26 ""}
+ addUserKnob {41 file T EXR.file}
+ addUserKnob {22 render l Render T "nukescripts.render_panel((nuke.thisNode(),), False)" +STARTLINE}
+ addUserKnob {26 ""}
+ addUserKnob {26 _1 l "" +STARTLINE T "<span style=\"color:#666\"><br/><b>Universal Writer v1.0</b> -  Kostiantyn Kokariev, 2024</span>"}
+ addUserKnob {20 path l "Path Fragments" +INVISIBLE}
+ addUserKnob {1 project l "Project Root"}
+ project "\[join \[lrange \[split \[value root.name] / ] 0 end-3] / ]"
+ addUserKnob {1 script l "Script Name"}
+ script "\[file rootname \[file tail \[value root.name] ] ]"
+ addUserKnob {1 shot l "Shot Name"}
+ shot "\[lrange \[split \[file tail \[value root.name] ] _ ] 0 1 ]"
+ addUserKnob {1 task l Task}
+ task "\[lrange \[split \[file tail \[value root.name] ] _ ] 2 2 ]"
+ addUserKnob {1 assignment l Assignment}
+ assignment "\[lrange \[split \[file tail \[value root.name] ] _ ] 3 3 ]"
+ addUserKnob {1 ver l Version}
+ ver "\[lrange \[split \[file rootname \[file tail \[value root.name] ] ] _ ] 4 4  ]"
+ addUserKnob {26 ""}
+ addUserKnob {1 des}
+ des main
+ addUserKnob {1 newcompname l "New Comp Name"}
+ newcompname "\[value shot]_\[value type]_\[value des]_\[value ver]"
+ addUserKnob {1 path_builder}
+ path_builder "\[value project]/comp/render/\[value type]/\[value newcompname]/\[value newcompname].%04d.exr"
+}
+ Input {
+  inputs 0
+  name MetaData
+  xpos -172
+  ypos -269
+  number 1
+ }
+ Dot {
+  name Dot2
+  xpos -138
+  ypos -162
+ }
+ Input {
+  inputs 0
+  name Input
+  xpos 0
+  ypos -266
+ }
+ CopyMetaData {
+  inputs 2
+  name CopyMetaData1
+  xpos 0
+  ypos -166
+ }
+ Dot {
+  name Dot1
+  xpos 34
+  ypos -30
+ }
+set N119886f0 [stack 0]
+ Dot {
+  name Dot3
+  xpos 641
+  ypos -30
+ }
+ Reformat {
+  format "1920 1080 0 0 1920 1080 1 HD_1080"
+  pbb true
+  name Reformat1
+  xpos 607
+  ypos 71
+ }
+ Dot {
+  name Dot4
+  xpos 641
+  ypos 231
+ }
+set N11bf53a0 [stack 0]
+ Dot {
+  name Dot8
+  xpos 1059
+  ypos 231
+ }
+ OCIOColorSpace {
+  in_colorspace scene_linear
+  out_colorspace "Input - ARRI - Curve - V3 LogC (EI800)"
+  name OCIOColorSpace3
+  label "\[value out_colorspace]"
+  xpos 1025
+  ypos 323
+ }
+ Dot {
+  name Dot7
+  xpos 1059
+  ypos 401
+ }
+set N11b705d0 [stack 0]
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_P3D65_nuke3d_33.vf
+  version 35
+  name Vectorfield8
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 695
+  ypos 497
+ }
+push $N11b705d0
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_P3D60_nuke3d_33.vf
+  version 35
+  name Vectorfield7
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 805
+  ypos 497
+ }
+push $N11b705d0
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_2020_nuke3d_33.vf
+  version 34
+  name Vectorfield6
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 915
+  ypos 497
+ }
+push $N11b705d0
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_P3DCI_nuke3d_33.vf
+  version 35
+  name Vectorfield5
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 1025
+  ypos 497
+ }
+push $N11b705d0
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_709_nuke3d_33.vf
+  version 34
+  name Vectorfield4
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 1135
+  ypos 497
+ }
+push $N11b705d0
+ Vectorfield {
+  vfield_file ~/.nuke/ProjectBrowser/LUTs/ARRI_LogC2Video/ARRI_LogC2Video_Classic709_nuke3d_33.vf
+  version 34
+  name Vectorfield3
+  label "Apply LUT here"
+  note_font_size 14
+  xpos 1245
+  ypos 497
+ }
+push $N11bf53a0
+ OCIOColorSpace {
+  in_colorspace scene_linear
+  out_colorspace "Output - Rec.709"
+  name OCIOColorSpace2
+  label "\[value out_colorspace]"
+  xpos 607
+  ypos 322
+ }
+ Switch {
+  inputs 7
+  which {{arrilut}}
+  name Switch2
+  xpos 607
+  ypos 676
+ }
+ Write {
+  file "\[value project]/comp/render/\[value type]/\[value newcompname].mov"
+  file_type mov
+  mov64_format "mov (QuickTime / MOV)"
+  mov64_codec appr
+  mov_h264_codec_profile "High 4:2:0 8-bit"
+  mov64_pixel_format {{0}}
+  mov64_quality High
+  mov64_fast_start true
+  mov64_write_timecode true
+  mov64_gop_size 12
+  mov64_b_frames 0
+  mov64_bitrate 20000
+  mov64_bitrate_tolerance 4000000
+  mov64_quality_min 1
+  mov64_quality_max 3
+  raw true
+  colorspace reference
+  create_directories true
+  checkHashOnRead false
+  version 2
+  ocioColorspace scene_linear
+  display ACES
+  view sRGB
+  name Write1
+  label "\[value file]"
+  selected true
+  xpos 607
+  ypos 819
+  disable {{"type == 0 && mov_box==1 ? 0 : 1"}}
+ }
+push $N119886f0
+ OCIOColorSpace {
+  in_colorspace scene_linear
+  out_colorspace scene_linear
+  name OCIOColorSpace1
+  label "\[value out_colorspace]"
+  xpos 0
+  ypos 286
+ }
+ Write {
+  file /comp/render/comp/_comp_main_/_comp_main_.%04d.exr
+  file_type exr
+  first_part rgba
+  raw true
+  colorspace Gamma2.2
+  create_directories true
+  checkHashOnRead false
+  version 2
+  ocioColorspace scene_linear
+  display ACES
+  view sRGB
+  name EXR
+  xpos 0
+  ypos 568
+  disable {{"exr_box==1 ? 0 : 1"}}
+ }
+ Switch {
+  inputs 2
+  which 1
+  name Switch1
+  xpos 0
+  ypos 837
+  disable {{qt!=1}}
+ }
+ Output {
+  name Output1
+  xpos 0
+  ypos 1096
+ }
+ StickyNote {
+  inputs 0
+  name StickyNote1
+  tile_color 0xcc7aadff
+  label "Set QT reformats here"
+  note_font_size 31
+  xpos 766
+  ypos 71
+ }
+end_group
