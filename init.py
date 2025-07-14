@@ -1,1 +1,1 @@
-nuke.pluginAddPath('./headSpace')
+nuke.pluginAddPath('./headShift')
