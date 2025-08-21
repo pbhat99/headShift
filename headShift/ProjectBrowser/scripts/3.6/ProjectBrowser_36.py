@@ -658,11 +658,50 @@ class ProjectBrowser(QWidget):
 
 
     def openScript(self):
-        print(f"Attempting to open script: {self.selected_script_path}")
-        if os.path.exists(self.selected_script_path):
+        if not self.selected_script_path:
+            QMessageBox.warning(self, "No Script Selected", "Please select a script to open.")
+            return
+
+        # Step 1: Handle unsaved changes
+        if nuke.root().modified():
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Unsaved Changes")
+            msg.setText("The current script has unsaved changes. What do you want to do?")
+
+            save_btn = msg.addButton("Save", QMessageBox.AcceptRole)
+            no_btn = msg.addButton("Don't Save", QMessageBox.DestructiveRole)
+            cancel_btn = msg.addButton("cancel", QMessageBox.DestructiveRole)
+
+            msg.setDefaultButton(save_btn)
+            msg.exec_()
+
+            if msg.clickedButton() == save_btn:
+                nuke.scriptSave()
+            elif msg.clickedButton() == no_btn:
+                pass
+            elif msg.clickedButton() == cancel_btn:
+                return
+
+        # Step 2: Ask where to open the selected script
+        msg2 = QMessageBox(self)
+        msg2.setWindowTitle("Open Script")
+        msg2.setText("Where do you want to open this script?")
+
+        same_btn = msg2.addButton("Same Session", QMessageBox.AcceptRole)
+        new_inst_btn = msg2.addButton("New Instance", QMessageBox.DestructiveRole)
+
+        msg2.setDefaultButton(same_btn)
+        msg2.exec_()
+
+        if msg2.clickedButton() == same_btn:
+            # Open in same session
+            nuke.scriptClear()
             nuke.scriptOpen(self.selected_script_path)
-        else:
-            QMessageBox.warning(self, "Script Not Found", f"The selected script '{self.selected_script_path}' does not exist.")
+        elif msg2.clickedButton() == new_inst_btn:
+            # Launch new Nuke instance
+            import subprocess
+            subprocess.Popen([nuke.env["ExecutablePath"], self.selected_script_path])
+
 
 
 
