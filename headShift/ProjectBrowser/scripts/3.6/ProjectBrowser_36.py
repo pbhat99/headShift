@@ -92,6 +92,7 @@ class ProjectBrowser(QWidget):
         self.refreshButton = QPushButton('Refresh')
         self.explButton = QPushButton('Explorer')
 
+        self.locateButton = QPushButton("Locate")
         self.newButton = QPushButton('New')
         self.openButton = QPushButton('Open')
         self.versionButton = QPushButton('VersionUp')
@@ -132,6 +133,7 @@ class ProjectBrowser(QWidget):
         self.lay_grd_main.addWidget(self.shots, 1, 2, 1, 1)
         self.lay_grd_main.addWidget(self.scripts, 1, 3, 1, 1)
 
+        self.lay_buttonVert.addWidget(self.locateButton)
         self.lay_buttonVert.addWidget(self.newButton)
         self.lay_buttonVert.addWidget(self.openButton)
         self.lay_buttonVert.addWidget(self.versionButton)
@@ -142,18 +144,98 @@ class ProjectBrowser(QWidget):
 
     def createConnections(self):
         self.browseButton.clicked.connect(self.browseProjectFolder)
-        self.refreshButton.clicked.connect(self.refresh)
         self.newProjectButton.clicked.connect(self.createNewProject)
         self.shotsButton.clicked.connect(self.createShots)
         self.templateButton.clicked.connect(self.createTemplateScript)
+        self.clearButton.clicked.connect(self.clearSelection)
+        self.refreshButton.clicked.connect(self.refresh)
         self.explButton.clicked.connect(self.openFileExplorer)
+
+        self.locateButton.clicked.connect(self.locateCurrentScript)
         self.newButton.clicked.connect(self.createNewScriptPanel)
         self.openButton.clicked.connect(self.openScript)
         self.versionButton.clicked.connect(self.versionScript)
         self.insertButton.clicked.connect(self.copyNodesFromScript)
-        self.clearButton.clicked.connect(self.clearSelection)
         self.scripts.selectionModel().currentChanged.connect(self.scriptSelected)
         self.importButton.clicked.connect(self.importScriptAsGroup)
+
+
+
+
+
+    def locateCurrentScript(self):
+
+        current_path = nuke.root().name()
+        if not current_path or not os.path.exists(current_path):
+            QMessageBox.warning(self, "No Script", "No currently open script to locate.")
+            return
+
+        current_path = os.path.normpath(current_path)
+        # --- Clear everything first ---
+        self.clearSelection()
+        self.refresh()
+
+        # --- Trim path until parent of 04_shots (project root) ---
+        parts = current_path.split(os.sep)
+        try:
+            shots_index = parts.index("04_shots")
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Path or wrrong folder structure", "Could not locate 04_shots in script path.")
+            return
+
+        project_root = os.sep.join(parts[:shots_index])  # path up to parent of 04_shots
+        reel_name = parts[shots_index + 1] if len(parts) > shots_index + 1 else None
+        shot_name = parts[shots_index + 2] if len(parts) > shots_index + 2 else None
+        script_name = os.path.basename(current_path)
+
+
+        # --- Select project in Projects panel ---
+        project_name = os.path.basename(project_root)
+        proj_model = self.projects.model()
+        proj_matches = proj_model.match(proj_model.index(0, 0), Qt.DisplayRole, project_name, hits=1, flags=Qt.MatchExactly)
+        if proj_matches:
+            idx = proj_matches[0]
+            self.projects.setCurrentIndex(idx)
+            self.projects.scrollTo(idx)
+        else:
+            QMessageBox.warning(self, "Not Found", f"Project {project_name} not found in Projects panel.")
+            return
+
+        # --- Select reel in Reels panel ---
+        if reel_name:
+            reel_model = self.reels.model()
+            reel_matches = reel_model.match(reel_model.index(0, 0), Qt.DisplayRole, reel_name, hits=1, flags=Qt.MatchExactly)
+            if reel_matches:
+                idx = reel_matches[0]
+                self.reels.setCurrentIndex(idx)
+                self.reels.scrollTo(idx)
+            else:
+                QMessageBox.warning(self, "Not Found", f"Reel {reel_name} not found in Reels panel.")
+                return
+
+        # --- Select shot in Shots panel ---
+        if shot_name:
+            shot_model = self.shots.model()
+            shot_matches = shot_model.match(shot_model.index(0, 0), Qt.DisplayRole, shot_name, hits=1, flags=Qt.MatchExactly)
+            if shot_matches:
+                idx = shot_matches[0]
+                self.shots.setCurrentIndex(idx)
+                self.shots.scrollTo(idx)
+            else:
+                QMessageBox.warning(self, "Not Found", f"Shot {shot_name} not found in Shots panel.")
+                return
+
+        # --- Select script in Scripts panel ---
+        script_model = self.scripts.model()
+        script_matches = script_model.match(script_model.index(0, 0), Qt.DisplayRole, script_name, hits=1, flags=Qt.MatchExactly)
+        if script_matches:
+            idx = script_matches[0]
+            self.scripts.setCurrentIndex(idx)
+            self.scripts.scrollTo(idx)
+        else:
+            QMessageBox.information(self, "Not Found", f"{script_name} not listed in Scripts panel.")
+
+
 
 
 
