@@ -84,24 +84,29 @@ class ProjectBrowser(QWidget):
         self.src.setFixedHeight(400)
 
         self.browseButton = QPushButton('Choose')
-        self.refreshButton = QPushButton('Refresh')
+
         self.newProjectButton = QPushButton('New Project')
         self.shotsButton = QPushButton('Create Shots')
         self.templateButton = QPushButton('Create Template')
-
+        self.clearButton = QPushButton("Clear")
+        self.refreshButton = QPushButton('Refresh')
         self.explButton = QPushButton('Explorer')
+
         self.newButton = QPushButton('New')
         self.openButton = QPushButton('Open')
         self.versionButton = QPushButton('VersionUp')
         self.insertButton = QPushButton('Insert')
-        self.clearButton = QPushButton('Clear')
+        self.importButton = QPushButton("Import")
 
         self.layoutWidgets()
 
     def layoutWidgets(self):
         # Row 0: Project directory + Choose button
-        self.lay_grd_project.addWidget(self.label, 0, 0, 1, 1)
-        self.lay_grd_project.addWidget(self.ProjectsFolderPath, 0, 1, 1, 3)
+        self.lay_grd_projectPath = QHBoxLayout()
+        self.lay_grd_projectPath.addWidget(self.label)
+        self.lay_grd_projectPath.addWidget(self.ProjectsFolderPath)
+        self.lay_grd_project.addLayout(self.lay_grd_projectPath, 0, 0, 1, 4)
+
         self.lay_grd_project.addWidget(self.browseButton, 0, 4, 1, 1)
 
         # Row 1: Toolbar with all buttons
@@ -109,6 +114,9 @@ class ProjectBrowser(QWidget):
         self.toolbar_layout.addWidget(self.newProjectButton)
         self.toolbar_layout.addWidget(self.shotsButton)
         self.toolbar_layout.addWidget(self.templateButton)
+
+        #self.toolbar_layout.addSpacing(50)
+        self.toolbar_layout.addWidget(self.clearButton)
         self.toolbar_layout.addWidget(self.refreshButton)
         self.toolbar_layout.addWidget(self.explButton)
 
@@ -128,8 +136,7 @@ class ProjectBrowser(QWidget):
         self.lay_buttonVert.addWidget(self.openButton)
         self.lay_buttonVert.addWidget(self.versionButton)
         self.lay_buttonVert.addWidget(self.insertButton)
-        self.lay_buttonVert.addItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
-        self.lay_buttonVert.addWidget(self.clearButton)
+        self.lay_buttonVert.addWidget(self.importButton)
 
         self.lay_src.addWidget(self.src)
 
@@ -146,6 +153,7 @@ class ProjectBrowser(QWidget):
         self.insertButton.clicked.connect(self.copyNodesFromScript)
         self.clearButton.clicked.connect(self.clearSelection)
         self.scripts.selectionModel().currentChanged.connect(self.scriptSelected)
+        self.importButton.clicked.connect(self.importScriptAsGroup)
 
 
 
@@ -848,6 +856,62 @@ class ProjectBrowser(QWidget):
         else:
             QMessageBox.warning(self, "Script Not Found", f"The selected script '{self.selected_script_path}' does not exist.")
 
+
+
+
+
+
+    # speedyscript
+    def importScriptAsGroup(self):
+        selected_indexes = self.scripts.selectionModel().selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "No Script Selected", "Please select a script to import.")
+            return
+
+        selected_script_name = selected_indexes[0].data()
+        script_path = os.path.join(
+            self.selected_shot_path, "comp", "nuke", selected_script_name
+        )
+
+        if not os.path.exists(script_path):
+            QMessageBox.warning(self, "File Missing", f"Script not found:\n{script_path}")
+            return
+
+        try:
+            self.importScriptFunction(script_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Import Failed", str(e))
+
+    def importScriptFunction(self, filePath):
+        size = os.path.getsize(filePath)
+        sizeMB = size / (1024*1024)
+
+        if size > 8000000:
+            import_ok = nuke.ask(
+                f"File is {sizeMB:.1f}MB. Importing could take some seconds.\n"
+                f"Do you want to continue?"
+            )
+            if not import_ok:
+                return
+
+        nuke.localization.pauseLocalization()
+
+        group = nuke.createNode("Group")
+        fileName = os.path.basename(filePath).replace('.nk', '').replace(' ', '_')
+
+        group.knob('name').setValue("SCRIPT_IMPORTED_" + fileName)
+        group.knob('label').setValue(filePath)
+        group.knob('note_font_size').setValue(20)
+        group.knob('tile_color').setValue(0x99000000)
+        group.knob('note_font_color').setValue(4294967041)
+        group.knob('note_font').setValue("bold")
+
+        groupNode = nuke.toNode(group.name())
+        groupNode.begin()
+        nuke.nodePaste(filePath)
+        groupNode.end()
+
+        nuke.showDag(groupNode)
 
 
 
