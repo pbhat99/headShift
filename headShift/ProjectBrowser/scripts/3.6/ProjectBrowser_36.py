@@ -325,7 +325,7 @@ class ProjectBrowser(QWidget):
         
         # Save the template script
         try:
-            nuke.scriptSaveAs(template_script_path)
+            nuke.scriptSaveAs(template_script)
             self.projectSelected(self.projects.currentIndex()) 
         except Exception as e:
             QMessageBox.warning(self, "Save Failed", f"Failed to save template script: {e}")
