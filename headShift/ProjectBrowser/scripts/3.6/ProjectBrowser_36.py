@@ -14,7 +14,7 @@ class ProjectBrowser(QWidget):
     def __init__(self, parent=None):
         super(ProjectBrowser, self).__init__(parent)
         self.setObjectName('browser')
-        self.setWindowTitle('Project Browser v1.0 - Kostiantyn Kokariev')
+        self.setWindowTitle('Project Browser v1.4 - Full Functions Restored')
 
         self.selected_shot_path = ""
         self.selected_script_path = ""
@@ -48,13 +48,14 @@ class ProjectBrowser(QWidget):
         self.lay_topVert.addLayout(self.lay_grd_main)
         self.lay_topVert.addLayout(self.lay_src)
         self.lay_sel.addLayout(self.lay_grd_project, 0, 0, 1, 1)
-        self.lay_grd_main.addLayout(self.lay_buttonVert, 1, 3, 1, 1)
+        self.lay_grd_main.addLayout(self.lay_buttonVert, 1, 4, 1, 1)
 
     def createWidgets(self):
         self.label = QLabel("Projects Directory:")
-        self.label1 = QLabel("Projects")
-        self.label2 = QLabel("Shots")
-        self.label3 = QLabel("Scripts")
+        self.label1 = QLabel("PROJECTS")
+        self.labelReel = QLabel("SEQ")
+        self.label2 = QLabel("SHOTS")
+        self.label3 = QLabel("SCRIPTS")
 
         self.ProjectsFolderPath = QLineEdit()
         self.ProjectsFolderPath.setReadOnly(True)
@@ -64,6 +65,11 @@ class ProjectBrowser(QWidget):
         self.projects_model = QStandardItemModel()
         self.projects.setModel(self.projects_model)
         self.projects.setFixedWidth(200)
+
+        self.reels = QListView()
+        self.reels_model = QStandardItemModel()
+        self.reels.setModel(self.reels_model)
+        self.reels.setFixedWidth(200)
 
         self.shots = QListView()
         self.shots_model = QStandardItemModel()
@@ -103,11 +109,13 @@ class ProjectBrowser(QWidget):
         self.lay_grd_project.addWidget(self.templateButton, 3, 0, 1, 1)
 
         self.lay_grd_main.addWidget(self.label1, 0, 0, 1, 1)
-        self.lay_grd_main.addWidget(self.label2, 0, 1, 1, 1)
-        self.lay_grd_main.addWidget(self.label3, 0, 2, 1, 1)
+        self.lay_grd_main.addWidget(self.labelReel, 0, 1, 1, 1)
+        self.lay_grd_main.addWidget(self.label2, 0, 2, 1, 1)
+        self.lay_grd_main.addWidget(self.label3, 0, 3, 1, 1)
         self.lay_grd_main.addWidget(self.projects, 1, 0, 1, 1)
-        self.lay_grd_main.addWidget(self.shots, 1, 1, 1, 1)
-        self.lay_grd_main.addWidget(self.scripts, 1, 2, 1, 1)
+        self.lay_grd_main.addWidget(self.reels, 1, 1, 1, 1)
+        self.lay_grd_main.addWidget(self.shots, 1, 2, 1, 1)
+        self.lay_grd_main.addWidget(self.scripts, 1, 3, 1, 1)
 
         self.lay_buttonVert.addWidget(self.newButton)
         self.lay_buttonVert.addWidget(self.openButton)
@@ -227,13 +235,28 @@ class ProjectBrowser(QWidget):
             "comp/ae", "comp/ae", "comp/fu", "comp/mocha", "comp/nuke",
             "comp/render", "comp/render/comp", "comp/render/precomp"
         ]
-    
-        # Create shot folders and subfolders
-        for item in os.listdir(plates_dir):
-            item_path = os.path.join(plates_dir, item)
-            if os.path.isdir(item_path) or os.path.isfile(item_path):
-                shot_name = os.path.splitext(item)[0]
-                shot_folder = os.path.join(shots_dir, shot_name)
+
+        for reel in os.listdir(plates_dir):
+            reel_path = os.path.join(plates_dir, reel)
+            if os.path.isdir(reel_path):
+                reel_dir = os.path.join(shots_dir, reel)
+                self.ensure_directory_exists(reel_dir)
+                for shot in os.listdir(reel_path):
+                    shot_path = os.path.join(reel_path, shot)
+                    if os.path.isdir(shot_path):
+                        shot_name = shot
+                    else:
+                        shot_name = os.path.splitext(shot)[0]
+                    shot_folder = os.path.join(reel_dir, shot_name)
+                    if self.ensure_directory_exists(shot_folder):
+                        for subfolder in subfolders:
+                            self.ensure_directory_exists(os.path.join(shot_folder, subfolder))
+            elif os.path.isfile(reel_path):
+                default_reel = "seq01"
+                reel_dir = os.path.join(shots_dir, default_reel)
+                self.ensure_directory_exists(reel_dir)
+                shot_name = os.path.splitext(reel)[0]
+                shot_folder = os.path.join(reel_dir, shot_name)
                 if self.ensure_directory_exists(shot_folder):
                     for subfolder in subfolders:
                         self.ensure_directory_exists(os.path.join(shot_folder, subfolder))
@@ -243,6 +266,7 @@ class ProjectBrowser(QWidget):
 
 
 
+        self.projectSelected(self.projects.currentIndex())
 
     def ensure_directory_exists(self, directory):
         if not os.path.exists(directory):
@@ -340,15 +364,28 @@ class ProjectBrowser(QWidget):
         self.ProjectsFolderPath.setText(self.ProjectsPath)
         self.projects_model.clear()
         if os.path.exists(self.ProjectsPath):
-            subdirectories = [d for d in os.listdir(self.ProjectsPath) if os.path.isdir(os.path.join(self.ProjectsPath, d))]
+            subdirectories = [
+                d for d in os.listdir(self.ProjectsPath)
+                if os.path.isdir(os.path.join(self.ProjectsPath, d))
+            ]
             for directory in subdirectories:
                 item = QStandardItem(directory)
                 self.projects_model.appendRow(item)
+
             self.projects.setModel(self.projects_model)
             self.projects.selectionModel().currentChanged.connect(self.projectSelected)
-        else:
-            QMessageBox.warning(self, "Directory Not Found", f"The projects directory '{self.ProjectsPath}' does not exist.")
 
+            # Auto-select first project if available
+            if self.projects_model.rowCount() > 0:
+                first_index = self.projects_model.index(0, 0)
+                self.projects.setCurrentIndex(first_index)
+                self.projectSelected(first_index)
+        else:
+            QMessageBox.warning(
+                self,
+                "Directory Not Found",
+                f"The projects directory '{self.ProjectsPath}' does not exist."
+            )
 
 
 
@@ -356,31 +393,39 @@ class ProjectBrowser(QWidget):
 
 
     def projectSelected(self, index):
+        self.reels_model.clear()
         self.shots_model.clear()
         self.scripts_model.clear()
         self.src.clear()
-        # Temporarily disconnect to avoid triggering shotSelected incorrectly
-        try:
-            self.shots.selectionModel().currentChanged.disconnect()
-        except TypeError:
-            # Handle case where selectionModel or currentChanged is None or already disconnected
-            pass
-    
-        if index.isValid():
 
+        if index.isValid():
             selected_folder = os.path.join(self.ProjectsPath, self.projects_model.itemFromIndex(index).text())
             if selected_folder:
                 self.projectPath.setText(selected_folder)
-                shots_folder = os.path.join(selected_folder, "04_shots")
-                if os.path.exists(shots_folder) and os.path.isdir(shots_folder):
-                    subdirectories = [d for d in os.listdir(shots_folder) if os.path.isdir(os.path.join(shots_folder, d))]
-                    for directory in subdirectories:
-                        item = QStandardItem(directory)
-                        self.shots_model.appendRow(item)    
-        # Reconnect the signal after updating
+                reels_folder = os.path.join(selected_folder, "04_shots")
+                if os.path.exists(reels_folder) and os.path.isdir(reels_folder):
+                    for reel in os.listdir(reels_folder):
+                        if os.path.isdir(os.path.join(reels_folder, reel)):
+                            self.reels_model.appendRow(QStandardItem(reel))
+
+        if self.reels.selectionModel():
+            self.reels.selectionModel().currentChanged.connect(self.reelSelected)
+
+    def reelSelected(self, index):
+        self.shots_model.clear()
+        self.scripts_model.clear()
+        self.src.clear()
+
+        reel_item = self.reels_model.itemFromIndex(index)
+        if reel_item:
+            reel_name = reel_item.text()
+            reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
+            for shot in os.listdir(reel_path):
+                if os.path.isdir(os.path.join(reel_path, shot)):
+                    self.shots_model.appendRow(QStandardItem(shot))
+
         if self.shots.selectionModel():
             self.shots.selectionModel().currentChanged.connect(self.shotSelected)
-
 
 
 
@@ -390,7 +435,8 @@ class ProjectBrowser(QWidget):
     def shotSelected(self, index):
         shot_item = self.shots_model.itemFromIndex(index)
         selected_shot = shot_item.text()
-        self.selected_shot_path = os.path.join(self.projectPath.text(), "04_shots", selected_shot)
+        selected_reel = self.reels.currentIndex().data()
+        self.selected_shot_path = os.path.join(self.projectPath.text(), "04_shots", selected_reel, selected_shot)
         self.populateScriptsModel(self.selected_shot_path)
         self.updateSourceTabs(self.projectPath.text(), self.selected_shot_path)
 
@@ -405,8 +451,9 @@ class ProjectBrowser(QWidget):
         selected_script_name = index.data()
         # Construct the full path to the selected script
         project_path = self.projectPath.text()
-        selected_shot = self.shots.currentIndex().data()
-        selected_script_path = os.path.join(project_path, "04_shots", selected_shot, "comp", "nuke", selected_script_name)
+
+        selected_reel = self.reels.currentIndex().data()
+        selected_script_path = os.path.join(project_path, "04_shots", selected_reel, selected_shot, "comp", "nuke", selected_script_name)
 
         if os.path.exists(selected_script_path):
             self.selected_script_path = selected_script_path  # Store the selected script path
