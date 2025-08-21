@@ -99,14 +99,21 @@ class ProjectBrowser(QWidget):
         self.layoutWidgets()
 
     def layoutWidgets(self):
+        # Row 0: Project directory + Choose button
         self.lay_grd_project.addWidget(self.label, 0, 0, 1, 1)
-        self.lay_grd_project.addWidget(self.ProjectsFolderPath, 0, 1, 1, 1)
-        self.lay_grd_project.addWidget(self.browseButton, 0, 2, 1, 1)
-        self.lay_grd_project.addWidget(self.newProjectButton, 1, 0, 1, 1)
-        self.lay_grd_project.addWidget(self.shotsButton, 2, 0, 1, 1)
-        self.lay_grd_project.addWidget(self.refreshButton, 1, 2, 1, 1)
-        self.lay_grd_project.addWidget(self.explButton, 2, 2, 1, 1)
-        self.lay_grd_project.addWidget(self.templateButton, 3, 0, 1, 1)
+        self.lay_grd_project.addWidget(self.ProjectsFolderPath, 0, 1, 1, 3)
+        self.lay_grd_project.addWidget(self.browseButton, 0, 4, 1, 1)
+
+        # Row 1: Toolbar with all buttons
+        self.toolbar_layout = QHBoxLayout()
+        self.toolbar_layout.addWidget(self.newProjectButton)
+        self.toolbar_layout.addWidget(self.shotsButton)
+        self.toolbar_layout.addWidget(self.templateButton)
+        self.toolbar_layout.addWidget(self.refreshButton)
+        self.toolbar_layout.addWidget(self.explButton)
+
+        self.lay_grd_project.addLayout(self.toolbar_layout, 1, 0, 1, 5)
+
 
         self.lay_grd_main.addWidget(self.label1, 0, 0, 1, 1)
         self.lay_grd_main.addWidget(self.labelReel, 0, 1, 1, 1)
@@ -285,24 +292,29 @@ class ProjectBrowser(QWidget):
     
 
     def createTemplateScript(self):
-        project_path = self.projectPath.text()
-        if not project_path:
+        if not self.projectPath.text():
             QMessageBox.warning(self, "No Project Selected", "Please select a project first.")
             return
-        
-        # Define the template directory path
-        template_dir = os.path.join(project_path, "04_shots", "template", "comp", "nuke")
-        
-        # Ensure the directory exists
-        if not os.path.exists(template_dir):
-            try:
-                os.makedirs(template_dir)
-            except OSError as e:
-                QMessageBox.warning(self, "Directory Creation Failed", f"Failed to create directory '{template_dir}': {e}")
-                return
-        
-        # Define the template script path
-        template_script_path = os.path.join(template_dir, "template.nk")
+
+        reel_index = self.reels.currentIndex()
+        if not reel_index.isValid():
+            QMessageBox.warning(self, "No Reel Selected", "Please select a reel first.")
+            return
+
+        reel_name = self.reels_model.itemFromIndex(reel_index).text()
+        reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
+
+        template_path = os.path.join(reel_path, "_TEMPLATE", "comp", "nuke")
+        self.ensure_directory_exists(template_path)
+
+        template_script = os.path.join(template_path, "template_v001.nk")
+        if not os.path.exists(template_script):
+            nuke.scriptClear()
+            nuke.scriptSaveAs(template_script)
+
+        # Refresh shots list so _TEMPLATE appears
+        self.reelSelected(reel_index)
+
         
         # Set Nuke script parameters
         nuke.scriptClear()  # Clear the current Nuke script
@@ -420,12 +432,13 @@ class ProjectBrowser(QWidget):
         if reel_item:
             reel_name = reel_item.text()
             reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
-            for shot in os.listdir(reel_path):
-                if os.path.isdir(os.path.join(reel_path, shot)):
-                    self.shots_model.appendRow(QStandardItem(shot))
+            if os.path.exists(reel_path):
+                for shot in os.listdir(reel_path):
+                    if os.path.isdir(os.path.join(reel_path, shot)):
+                        self.shots_model.appendRow(QStandardItem(shot))
 
-        if self.shots.selectionModel():
-            self.shots.selectionModel().currentChanged.connect(self.shotSelected)
+            if self.shots.selectionModel():
+                self.shots.selectionModel().currentChanged.connect(self.shotSelected)
 
 
 
@@ -447,19 +460,32 @@ class ProjectBrowser(QWidget):
 
 
     def scriptSelected(self, index):
-        # Get the name of the selected script
-        selected_script_name = index.data()
-        # Construct the full path to the selected script
+        script_item = self.scripts_model.itemFromIndex(index)
+        if not script_item:
+            return
+
         project_path = self.projectPath.text()
 
-        selected_reel = self.reels.currentIndex().data()
-        selected_script_path = os.path.join(project_path, "04_shots", selected_reel, selected_shot, "comp", "nuke", selected_script_name)
+        # Get selected reel
+        reel_index = self.reels.currentIndex()
+        if not reel_index.isValid():
+            return
+        selected_reel = self.reels_model.itemFromIndex(reel_index).text()
 
-        if os.path.exists(selected_script_path):
-            self.selected_script_path = selected_script_path  # Store the selected script path
-        else:
-            self.selected_script_path = ""
-            QMessageBox.warning(self, "Script Not Found", f"The script '{selected_script_name}' does not exist.")
+        # Get selected shot
+        shot_index = self.shots.currentIndex()
+        if not shot_index.isValid():
+            return
+        selected_shot = self.shots_model.itemFromIndex(shot_index).text()
+
+        # Get script name
+        selected_script_name = script_item.text()
+
+        # Build full path
+        self.selected_script_path = os.path.join(
+            project_path, "04_shots", selected_reel, selected_shot, "comp", "nuke", selected_script_name
+        )
+
 
 
 
