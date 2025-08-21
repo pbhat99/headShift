@@ -557,53 +557,137 @@ class ProjectBrowser(QWidget):
         if not self.selected_shot_path:
             QMessageBox.warning(self, "No Shot Selected", "Please select a shot first.")
             return
-    
-        # Create the dialog for input
+
+        # --- Dialog setup ---
         dialog = QDialog(self)
         dialog.setWindowTitle("Create New Script")
-    
-        main_layout = QVBoxLayout()
-    
-        # Horizontal layout for shot label and name
-        shot_layout = QHBoxLayout()
-        shot_label = QLabel("Shot Name:")
-        shot_name = QLabel(os.path.basename(self.selected_shot_path))
-        shot_layout.addWidget(shot_label)
-        shot_layout.addWidget(shot_name)
-        main_layout.addLayout(shot_layout)
-    
-        # Horizontal layout for task, assignment, and version
-        input_layout = QHBoxLayout()
-    
-        task_label = QLabel("Task:")
-        task_input = QLineEdit()
-        input_layout.addWidget(task_label)
-        input_layout.addWidget(task_input)
-    
-        assignment_label = QLabel("Assignment:")
-        assignment_input = QLineEdit()
-        input_layout.addWidget(assignment_label)
-        input_layout.addWidget(assignment_input)
-    
-        version_label = QLabel("Version:")
-        version_input = QLineEdit()
-        version_input.setMaxLength(3)
-        version_input.setText("001")
-        input_layout.addWidget(version_label)
-        input_layout.addWidget(version_input)
-    
-        main_layout.addLayout(input_layout)
-    
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+
+        main_layout = QVBoxLayout(dialog)
+
+        # --- Row: Task + Assignment + Version ---
+        row_layout = QHBoxLayout()
+
+        # Task dropdown
+        task_combo = QComboBox(dialog)
+        task_combo.addItems(["comp", "precomp", "prep", "roto", "denoise"])
+        task_combo.setCurrentIndex(0)  # comp default
+        row_layout.addWidget(QLabel("Task:"))
+        row_layout.addWidget(task_combo)
+
+        # Assignment input
+        assignment_edit = QLineEdit(dialog)
+        row_layout.addWidget(QLabel("Assignment:"))
+        row_layout.addWidget(assignment_edit)
+
+        # Version input
+        version_edit = QLineEdit(dialog)
+        version_edit.setFixedWidth(50)
+        version_edit.setText("001")
+        row_layout.addWidget(QLabel("Version:"))
+        row_layout.addWidget(version_edit)
+
+        main_layout.addLayout(row_layout)
+
+        # Preview row: label + yellow filename
+        preview_row = QHBoxLayout()
+        preview_row.addWidget(QLabel("Preview:"))
+        preview_label = QLabel(dialog)
+        preview_label.setStyleSheet("color: yellow; font-weight: bold;")
+        preview_row.addWidget(preview_label)
+        preview_row.addStretch(1)
+        main_layout.addLayout(preview_row)
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
         main_layout.addWidget(button_box)
-    
-        dialog.setLayout(main_layout)
-    
-        # Connect the buttons
-        button_box.accepted.connect(lambda: self.createNewScript(shot_name.text(), task_input.text(), assignment_input.text(), version_input.text(), dialog))
+
+        # --- Helper: find next available version (no reel prefix) ---
+        def get_next_version(task, assignment):
+            comp_path = os.path.join(self.selected_shot_path, "comp", "nuke")
+            if not os.path.exists(comp_path):
+                return 1
+
+            shot_name = os.path.basename(self.selected_shot_path)
+            if assignment:
+                prefix = f"{shot_name}_{task}_{assignment}_v"
+            else:
+                prefix = f"{shot_name}_{task}_v"
+
+            max_version = 0
+            for f in os.listdir(comp_path):
+                if f.startswith(prefix) and f.endswith(".nk"):
+                    try:
+                        ver_num = int(f.split("_v")[-1].split(".")[0])
+                        max_version = max(max_version, ver_num)
+                    except:
+                        pass
+            return max_version + 1
+
+        # --- Helper: update preview (auto-increments when task/assignment change) ---
+        def update_preview(auto_version=False):
+            task = task_combo.currentText()
+            assignment = assignment_edit.text().strip()
+            version_text = version_edit.text().strip()
+            shot_name = os.path.basename(self.selected_shot_path)
+
+            if auto_version:
+                next_version = get_next_version(task, assignment)
+                version_text = str(next_version).zfill(3)
+                version_edit.setText(version_text)
+
+            if not version_text.isdigit():
+                version_text = "001"
+            version_text = version_text.zfill(3)
+
+            if assignment:
+                filename = f"{shot_name}_{task}_{assignment}_v{version_text}.nk"
+            else:
+                filename = f"{shot_name}_{task}_v{version_text}.nk"
+
+            preview_label.setText(filename)
+
+        # Wire live updates
+        task_combo.currentIndexChanged.connect(lambda: update_preview(True))
+        assignment_edit.textChanged.connect(lambda: update_preview(True))
+        version_edit.textChanged.connect(lambda: update_preview(False))
+
+        # Initialize preview and focus
+        update_preview(True)
+        assignment_edit.setFocus()
+
+        # --- Actions ---
+        def accept():
+            task = task_combo.currentText()
+            assignment = assignment_edit.text().strip()
+            version_text = version_edit.text().strip()
+            if not version_text.isdigit():
+                version_text = "001"
+            version_text = version_text.zfill(3)
+
+            if not assignment:
+                QMessageBox.warning(dialog, "Missing Input", "Please enter an assignment name.")
+                return
+
+            shot_name = os.path.basename(self.selected_shot_path)
+            filename = f"{shot_name}_{task}_{assignment}_v{version_text}.nk"
+            new_script_path = os.path.join(self.selected_shot_path, "comp", "nuke", filename)
+            self.ensure_directory_exists(os.path.dirname(new_script_path))
+
+            nuke.scriptClear()
+            nuke.scriptSaveAs(new_script_path)
+
+            self.populateScriptsModel(self.selected_shot_path)
+            dialog.accept()
+
+        button_box.accepted.connect(accept)
         button_box.rejected.connect(dialog.reject)
-    
+
         dialog.exec_()
+
+
+
+
+
 
     
 
