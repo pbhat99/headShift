@@ -550,18 +550,24 @@ class ProjectBrowser(QWidget):
     def reelSelected(self, index):
         self.shots_model.clear()
         self.scripts_model.clear()
-        self.src.clear()
+        self.src.clear() # Clear tabs here, as shotSelected will populate them
 
         reel_item = self.reels_model.itemFromIndex(index)
         if reel_item:
             reel_name = reel_item.text()
-            reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
-            if os.path.exists(reel_path):
-                for shot in os.listdir(reel_path):
-                    if os.path.isdir(os.path.join(reel_path, shot)):
+            
+            # Populate SHOTS panel from 04_shots
+            shots_reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
+            if os.path.exists(shots_reel_path):
+                for shot in os.listdir(shots_reel_path):
+                    if os.path.isdir(os.path.join(shots_reel_path, shot)): # Only add directories
                         self.shots_model.appendRow(QStandardItem(shot))
 
             if self.shots.selectionModel():
+                try:
+                    self.shots.selectionModel().currentChanged.disconnect(self.shotSelected)
+                except:
+                    pass
                 self.shots.selectionModel().currentChanged.connect(self.shotSelected)
 
 
