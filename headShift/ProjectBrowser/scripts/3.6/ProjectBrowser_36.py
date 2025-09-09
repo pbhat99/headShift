@@ -473,18 +473,64 @@ class ProjectBrowser(QWidget):
 
 
     def openFileExplorer(self):
-        project_folder = self.projectPath.text()
-        if os.path.exists(project_folder):
+        selected_path = None
+
+        # 1. Check for selected script
+        script_index = self.scripts.selectionModel().currentIndex()
+        if script_index.isValid():
+            selected_path = self.scripts_model.data(script_index, Qt.UserRole)
+            if selected_path and os.path.exists(selected_path):
+                if os.path.isfile(selected_path):
+                    selected_path = os.path.dirname(selected_path)
+
+        # 2. Check for selected shot (if no script selected or script path invalid)
+        if not selected_path:
+            shot_index = self.shots.selectionModel().currentIndex()
+            if shot_index.isValid():
+                selected_shot_name = self.shots_model.data(shot_index)
+                selected_reel = self.reels.currentIndex().data()
+                if selected_reel: # Ensure a reel is also selected
+                    selected_path = os.path.join(self.projectPath.text(), "04_shots", selected_reel, selected_shot_name)
+                    if not os.path.exists(selected_path):
+                        selected_path = None # In case the path doesn't exist
+
+        # 3. Check for selected reel (if no shot/script selected or path invalid)
+        if not selected_path:
+            reel_index = self.reels.currentIndex()
+            if reel_index.isValid():
+                reel_name = self.reels_model.data(reel_index)
+                selected_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
+                if not os.path.exists(selected_path):
+                    selected_path = None # In case the path doesn't exist
+
+        # 4. Check for selected project (if no reel/shot/script selected or path invalid)
+        if not selected_path:
+            project_index = self.projects.currentIndex()
+            if project_index.isValid():
+                project_name = self.projects_model.data(project_index)
+                selected_path = os.path.join(self.ProjectsPath, project_name)
+                if not os.path.exists(selected_path):
+                    selected_path = None # In case the path doesn't exist
+
+        # 5. Fallback to current project root if nothing specific is selected or valid
+        if not selected_path:
+            selected_path = self.projectPath.text()
+
+        if selected_path and os.path.exists(selected_path):
+            # Normalize path for Windows explorer
+            if sys.platform == 'win32':
+                selected_path = os.path.normpath(selected_path)
+
             if sys.platform == 'darwin':
-                subprocess.Popen(['open', project_folder])  # macOS
+                subprocess.Popen(['open', selected_path])  # macOS
             elif sys.platform == 'win32':
-                subprocess.Popen(['explorer', project_folder])  # Windows
+                subprocess.Popen(['explorer', selected_path])  # Windows
             elif sys.platform == 'linux':
-                subprocess.Popen(['xdg-open', project_folder])  # Linux
+                subprocess.Popen(['xdg-open', selected_path])  # Linux
             else:
                 QMessageBox.warning(self, "Unsupported Platform", "Opening file explorer is not supported on this platform.")
         else:
-            QMessageBox.warning(self, "Directory Not Found", f"The project directory '{project_folder}' does not exist.")
+            QMessageBox.warning(self, "Location Not Found", "Could not determine a valid location to open.")
 
 
 
