@@ -159,7 +159,7 @@ class ProjectBrowser(QWidget):
 
         self.newProjectButton = QPushButton('New Project')
         self.shotsButton = QPushButton('Create Shots')
-        self.clearButton = QPushButton("Clear")
+        
         self.refreshButton = QPushButton('Refresh')
         self.explButton = QPushButton('Explorer')
 
@@ -187,7 +187,6 @@ class ProjectBrowser(QWidget):
         self.toolbar_layout.addWidget(self.shotsButton)
 
         #self.toolbar_layout.addSpacing(50)
-        self.toolbar_layout.addWidget(self.clearButton)
         self.toolbar_layout.addWidget(self.refreshButton)
         self.toolbar_layout.addWidget(self.explButton)
 
@@ -216,7 +215,7 @@ class ProjectBrowser(QWidget):
         self.browseButton.clicked.connect(self.browseProjectFolder)
         self.newProjectButton.clicked.connect(self.createNewProject)
         self.shotsButton.clicked.connect(self.createShots)
-        self.clearButton.clicked.connect(self.clearSelection)
+        
         self.refreshButton.clicked.connect(self.refresh)
         self.explButton.clicked.connect(self.openFileExplorer)
 
@@ -236,13 +235,30 @@ class ProjectBrowser(QWidget):
 
         current_path = nuke.root().name()
         if not current_path or not os.path.exists(current_path):
-            QMessageBox.warning(self, "No Script", "No currently open script to locate.")
-            return
+            recent_files_path = os.path.join(os.path.expanduser("~"), ".nuke", "recent_files")
+            if os.path.exists(recent_files_path):
+                with open(recent_files_path, 'r') as f:
+                    recent_file_content = f.read().strip()
+                
+                if recent_file_content:
+                    # Get the first line (latest recent file)
+                    latest_recent_file = recent_file_content.splitlines()[0].strip()
+                    # Remove quotes if present
+                    latest_recent_file = latest_recent_file.strip('"')
+                    
+                    if os.path.exists(latest_recent_file):
+                        current_path = latest_recent_file
+                    else:
+                        QMessageBox.warning(self, "No Script", "No currently open script and latest recent file does not exist.")
+                        return
+                else:
+                    QMessageBox.warning(self, "No Script", "No currently open script and no recent files found.")
+                    return
+            else:
+                QMessageBox.warning(self, "No Script", "No currently open script and recent files list not found.")
+                return
 
         current_path = os.path.normpath(current_path)
-        # --- Clear everything first ---
-        self.clearSelection()
-        self.refresh()
 
         # --- Trim path until parent of 04_shots (project root) ---
         parts = current_path.split(os.sep)
@@ -252,14 +268,20 @@ class ProjectBrowser(QWidget):
             QMessageBox.warning(self, "Invalid Path or wrrong folder structure", "Could not locate 04_shots in script path.")
             return
 
-        project_root = os.sep.join(parts[:shots_index])  # path up to parent of 04_shots
+        project_root = os.sep.join(parts[:shots_index - 1])  # path up to parent of the project folder
         reel_name = parts[shots_index + 1] if len(parts) > shots_index + 1 else None
         shot_name = parts[shots_index + 2] if len(parts) > shots_index + 2 else None
         script_name = os.path.basename(current_path)
 
+        # Set the ProjectsPath and update the QLineEdit before refreshing
+        self.ProjectsPath = project_root
+        self.ProjectsFolderPath.setText(self.ProjectsPath)
+
+        # --- Refresh with the new ProjectsPath ---
+        self.refresh()
 
         # --- Select project in Projects panel ---
-        project_name = os.path.basename(project_root)
+        project_name = parts[shots_index - 1]
         proj_model = self.projects.model()
         proj_matches = proj_model.match(proj_model.index(0, 0), Qt.DisplayRole, project_name, hits=1, flags=Qt.MatchExactly)
         if proj_matches:
@@ -458,7 +480,7 @@ class ProjectBrowser(QWidget):
 
 
     def browseProjectFolder(self):
-        self.clearSelection()
+        
         options = QFileDialog.Options()
         options |= QFileDialog.ShowDirsOnly
         self.ProjectsPath = QFileDialog.getExistingDirectory(self, "Select Projects Folder", "", options=options)
@@ -1152,11 +1174,6 @@ class ProjectBrowser(QWidget):
 
 
 
-    def clearSelection(self):
-        self.projects_model.clear()
-        self.shots_model.clear()
-        self.scripts_model.clear()
-        self.src.clear()
 
 
 

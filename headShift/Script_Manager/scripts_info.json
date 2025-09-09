@@ -1,0 +1,38 @@
+{
+    "AlignDots": {
+        "default": true,
+        "custom_cmd_checkbox": false,
+        "command": "import AlignDots; AlignDots.AlignDots()",
+        "custom_command": "",
+        "tooltip": "",
+        "icon": "",
+        "shortcut": "",
+        "shortcut_context": "0",
+        "index": -1,
+        "menu_path": "SMan/Align Dots"
+    },
+    "pbAutoLabels": {
+        "default": true,
+        "custom_cmd_checkbox": false,
+        "command": "import pbAutoLabels; pbAutoLabels.pbAutoLabels()",
+        "custom_command": "",
+        "tooltip": "",
+        "icon": "",
+        "shortcut": "",
+        "shortcut_context": "No context",
+        "index": -1,
+        "menu_path": "SMan/Pb Auto Labels"
+    },
+    "animatedSnap3D": {
+        "default": true,
+        "custom_cmd_checkbox": false,
+        "command": "import animatedSnap3D; animatedSnap3D.animatedSnap3D()",
+        "custom_command": "",
+        "tooltip": "",
+        "icon": "",
+        "shortcut": "",
+        "shortcut_context": "No context",
+        "index": -1,
+        "menu_path": "SMan/Animated Snap3 D"
+    }
+}
