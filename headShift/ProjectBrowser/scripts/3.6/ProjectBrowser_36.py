@@ -159,7 +159,6 @@ class ProjectBrowser(QWidget):
 
         self.newProjectButton = QPushButton('New Project')
         self.shotsButton = QPushButton('Create Shots')
-        self.templateButton = QPushButton('Create Template')
         self.clearButton = QPushButton("Clear")
         self.refreshButton = QPushButton('Refresh')
         self.explButton = QPushButton('Explorer')
@@ -186,7 +185,6 @@ class ProjectBrowser(QWidget):
         self.toolbar_layout = QHBoxLayout()
         self.toolbar_layout.addWidget(self.newProjectButton)
         self.toolbar_layout.addWidget(self.shotsButton)
-        self.toolbar_layout.addWidget(self.templateButton)
 
         #self.toolbar_layout.addSpacing(50)
         self.toolbar_layout.addWidget(self.clearButton)
@@ -218,7 +216,6 @@ class ProjectBrowser(QWidget):
         self.browseButton.clicked.connect(self.browseProjectFolder)
         self.newProjectButton.clicked.connect(self.createNewProject)
         self.shotsButton.clicked.connect(self.createShots)
-        self.templateButton.clicked.connect(self.createTemplateScript)
         self.clearButton.clicked.connect(self.clearSelection)
         self.refreshButton.clicked.connect(self.refresh)
         self.explButton.clicked.connect(self.openFileExplorer)
@@ -404,34 +401,38 @@ class ProjectBrowser(QWidget):
             "Exports", "Exports/cam", "Exports/geo", "Exports/lensDistort",
         ]
 
-        for reel in os.listdir(plates_dir):
-            reel_path = os.path.join(plates_dir, reel)
-            if os.path.isdir(reel_path):
-                reel_dir = os.path.join(shots_dir, reel)
-                self.ensure_directory_exists(reel_dir)
-                for shot in os.listdir(reel_path):
-                    shot_path = os.path.join(reel_path, shot)
-                    if os.path.isdir(shot_path):
-                        shot_name = shot
-                    else:
-                        shot_name = os.path.splitext(shot)[0]
-                    shot_folder = os.path.join(reel_dir, shot_name)
-                    if self.ensure_directory_exists(shot_folder):
-                        for subfolder in subfolders:
-                            self.ensure_directory_exists(os.path.join(shot_folder, subfolder))
-            elif os.path.isfile(reel_path):
-                default_reel = "seq01"
-                reel_dir = os.path.join(shots_dir, default_reel)
-                self.ensure_directory_exists(reel_dir)
-                shot_name = os.path.splitext(reel)[0]
-                shot_folder = os.path.join(reel_dir, shot_name)
-                if self.ensure_directory_exists(shot_folder):
-                    for subfolder in subfolders:
-                        self.ensure_directory_exists(os.path.join(shot_folder, subfolder))
-    
-        self.projectSelected(self.projects.currentIndex())
-    
+        def create_shot_structure(reel_dir, shot_name):
+            shot_folder = os.path.join(reel_dir, shot_name)
+            if self.ensure_directory_exists(shot_folder):
+                for subfolder in subfolders:
+                    self.ensure_directory_exists(os.path.join(shot_folder, subfolder))
 
+        # Get reels (directories) from plates_dir
+        reels = [d for d in os.listdir(plates_dir) if os.path.isdir(os.path.join(plates_dir, d))]
+
+        # If no reels, check for files and create a default "seq01" reel
+        if not reels and any(os.path.isfile(os.path.join(plates_dir, f)) for f in os.listdir(plates_dir)):
+            reels = ["seq01"]
+
+        for reel_name in reels:
+            reel_dir_in_shots = os.path.join(shots_dir, reel_name)
+            self.ensure_directory_exists(reel_dir_in_shots)
+
+            # Create _TEMPLATE shot
+            create_shot_structure(reel_dir_in_shots, "_TEMPLATE")
+
+            reel_dir_in_plates = os.path.join(plates_dir, reel_name)
+            if os.path.isdir(reel_dir_in_plates):
+                # Get shots from the reel directory in plates
+                shots_in_reel = os.listdir(reel_dir_in_plates)
+                for shot_name_ext in shots_in_reel:
+                    shot_name = os.path.splitext(shot_name_ext)[0]
+                    create_shot_structure(reel_dir_in_shots, shot_name)
+            else: # This handles the case of the default "seq01" reel
+                shots_in_reel = [f for f in os.listdir(plates_dir) if os.path.isfile(os.path.join(plates_dir, f))]
+                for shot_name_ext in shots_in_reel:
+                    shot_name = os.path.splitext(shot_name_ext)[0]
+                    create_shot_structure(reel_dir_in_shots, shot_name)
 
 
         self.projectSelected(self.projects.currentIndex())
@@ -451,48 +452,6 @@ class ProjectBrowser(QWidget):
 
 
     
-
-    def createTemplateScript(self):
-        if not self.projectPath.text():
-            QMessageBox.warning(self, "No Project Selected", "Please select a project first.")
-            return
-
-        reel_index = self.reels.currentIndex()
-        if not reel_index.isValid():
-            QMessageBox.warning(self, "No Reel Selected", "Please select a reel first.")
-            return
-
-        reel_name = self.reels_model.itemFromIndex(reel_index).text()
-        reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
-
-        template_path = os.path.join(reel_path, "_TEMPLATE", "nuke")
-        self.ensure_directory_exists(template_path)
-
-        template_script = os.path.join(template_path, "template_v001.nk")
-        if not os.path.exists(template_script):
-            nuke.scriptClear()
-            nuke.scriptSaveAs(template_script)
-
-        # Refresh shots list so _TEMPLATE appears
-        self.reelSelected(reel_index)
-
-        
-        # Set Nuke script parameters
-        nuke.scriptClear()  # Clear the current Nuke script
-        nuke.Root()["first_frame"].setValue(1001)
-        nuke.Root()["last_frame"].setValue(1101)
-        nuke.Root()["fps"].setValue(23.976)
-        nuke.Root()["format"].setValue("UHD_4K")
-        
-        # Save the template script
-        try:
-            nuke.scriptSaveAs(template_script)
-            self.projectSelected(self.projects.currentIndex()) 
-        except Exception as e:
-            QMessageBox.warning(self, "Save Failed", f"Failed to save template script: {e}")
-
-
-
 
 
 
@@ -714,6 +673,7 @@ class ProjectBrowser(QWidget):
 
 
     def updateSourceTabs(self, project_path, selected_shot_path, selected_reel):
+        current_tab_index = self.src.currentIndex()
         self.src.clear()
 
         # "all" tab
@@ -735,9 +695,10 @@ class ProjectBrowser(QWidget):
         if os.path.exists(exports_path):
             self.addSourceTab(selected_shot_path, "Exports", "Exports")
 
-        self.src.setCurrentIndex(0)
-
-
+        if current_tab_index != -1:
+            self.src.setCurrentIndex(current_tab_index)
+        else:
+            self.src.setCurrentIndex(0)
 
 
 
