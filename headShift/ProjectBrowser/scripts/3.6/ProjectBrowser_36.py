@@ -544,7 +544,28 @@ class ProjectBrowser(QWidget):
                         if os.path.isdir(os.path.join(reels_folder, reel)):
                             self.reels_model.appendRow(QStandardItem(reel))
 
+                # Populate bottom tabs for project selection
+                project_path = self.projectPath.text()
+                
+                # "all" tab (showing content of 04_shots for the project)
+                if os.path.exists(reels_folder): # reels_folder is 04_shots
+                    self.addSourceTab(reels_folder, "", "all")
+
+                # "plates" tab (showing content of 01_plates for the project)
+                plates_project_path = os.path.join(project_path, "01_plates")
+                if os.path.exists(plates_project_path):
+                    self.addSourceTab(plates_project_path, "", "plates")
+                    
+                if self.src.count() > 1:
+                    self.src.setCurrentIndex(1) # Select "plates" tab if it exists
+                elif self.src.count() > 0:
+                    self.src.setCurrentIndex(0)
+
         if self.reels.selectionModel():
+            try:
+                self.reels.selectionModel().currentChanged.disconnect(self.reelSelected)
+            except:
+                pass
             self.reels.selectionModel().currentChanged.connect(self.reelSelected)
 
     def reelSelected(self, index):
@@ -569,6 +590,23 @@ class ProjectBrowser(QWidget):
                 except:
                     pass
                 self.shots.selectionModel().currentChanged.connect(self.shotSelected)
+
+            # Populate bottom tabs
+            project_path = self.projectPath.text()
+            plates_reel_path = os.path.join(project_path, "01_plates", reel_name)
+
+            # "all" tab (showing content of 04_shots/reel_name)
+            if os.path.exists(shots_reel_path):
+                self.addSourceTab(shots_reel_path, "", "all")
+
+            # "plates" tab (showing content of 01_plates/reel_name)
+            if os.path.exists(plates_reel_path):
+                self.addSourceTab(plates_reel_path, "", "plates")
+                
+            if self.src.count() > 1:
+                self.src.setCurrentIndex(1) # Select "plates" tab if it exists
+            elif self.src.count() > 0:
+                self.src.setCurrentIndex(0)
 
 
 
