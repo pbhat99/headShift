@@ -8,13 +8,15 @@ import nukescripts
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
 from PySide2.QtCore import *
+# from PySide2.QtWidgets import QTreeView
+# from PySide2.QtGui import QStandardItemModel
 
 class ProjectBrowser(QWidget):
     appName = 'browser'
     def __init__(self, parent=None):
         super(ProjectBrowser, self).__init__(parent)
         self.setObjectName('browser')
-        self.setWindowTitle('Project Browser v1.4 - Full Functions Restored')
+        self.setWindowTitle('Project Browser v1.5')
 
         self.selected_shot_path = ""
         self.selected_script_path = ""
@@ -76,9 +78,16 @@ class ProjectBrowser(QWidget):
         self.shots.setModel(self.shots_model)
         self.shots.setFixedWidth(200)
 
-        self.scripts = QListView()
+
+
+        # Scripts panel (Tree instead of List)
+        self.scripts = QTreeView()
         self.scripts_model = QStandardItemModel()
         self.scripts.setModel(self.scripts_model)
+        self.scripts.setHeaderHidden(True)
+        self.scripts.setRootIsDecorated(True)  # shows expand/collapse arrows
+
+
 
         self.src = QTabWidget()
         self.src.setFixedHeight(400)
@@ -285,18 +294,17 @@ class ProjectBrowser(QWidget):
             
             # Create subfolders inside the project
             subfolders = [
-               '00_docs',
-               '01_plates',
-               '02_editorial',
-               '03_elements',
-               '04_shots',
-               '05_final',
-               '00_docs/brief',
-               '00_docs/notes',
-               '00_docs/storyboard',
-               '00_docs/tech'
+                '00_docs',
+                '01_plates',
+                '02_editorial',
+                '03_elements',
+                '04_shots',
+                '05_final',
+                '00_docs/brief',
+                '00_docs/notes',
+                '00_docs/storyboard',
+                '00_docs/tech',
             ]
-
             for subfolder in subfolders:
                 os.makedirs(os.path.join(new_project_path, subfolder))
                 
@@ -329,8 +337,8 @@ class ProjectBrowser(QWidget):
     
         subfolders = [
             "comp", "dmp", "fx", "gfx", "lay", "lgt", "mm", "paint", "roto",
-            "comp/ae", "comp/ae", "comp/fu", "comp/mocha", "comp/nuke",
-            "comp/render", "comp/render/comp", "comp/render/precomp"
+            "comp/ae", "comp/fu", "comp/mocha", "comp/nuke",
+            "comp/render", "comp/render/comp", "comp/render/precomp",
         ]
 
         for reel in os.listdir(plates_dir):
@@ -475,6 +483,10 @@ class ProjectBrowser(QWidget):
                 self.projects_model.appendRow(item)
 
             self.projects.setModel(self.projects_model)
+            try:
+                self.projects.selectionModel().currentChanged.disconnect(self.projectSelected)
+            except Exception:
+                pass
             self.projects.selectionModel().currentChanged.connect(self.projectSelected)
 
             # Auto-select first project if available
@@ -549,33 +561,41 @@ class ProjectBrowser(QWidget):
 
 
 
-    def scriptSelected(self, index):
-        script_item = self.scripts_model.itemFromIndex(index)
-        if not script_item:
+    def scriptSelected(self, current, previous=None):
+        """Handle script selection. If a group is clicked, auto-select latest version child."""
+        if not current.isValid():
             return
 
-        project_path = self.projectPath.text()
-
-        # Get selected reel
-        reel_index = self.reels.currentIndex()
-        if not reel_index.isValid():
+        item = self.scripts_model.itemFromIndex(current)
+        if not item:
             return
-        selected_reel = self.reels_model.itemFromIndex(reel_index).text()
 
-        # Get selected shot
-        shot_index = self.shots.currentIndex()
-        if not shot_index.isValid():
+        # In scriptSelected:
+        item = self.scripts_model.itemFromIndex(current)
+        if item and not item.hasChildren():
+            fpath = item.data(Qt.UserRole)
+            if fpath and os.path.exists(fpath):
+                self.selected_script_path = fpath
+            else:
+                self.selected_script_path = None
+
+
+        if not item:
             return
-        selected_shot = self.shots_model.itemFromIndex(shot_index).text()
 
-        # Get script name
-        selected_script_name = script_item.text()
+        selected_script_name = item.text()
 
-        # Build full path
-        self.selected_script_path = os.path.join(
-            project_path, "04_shots", selected_reel, selected_shot, "comp", "nuke", selected_script_name
-        )
-
+        # Build full path (this is what Locate and others rely on)
+        if hasattr(self, "selected_shot_path") and self.selected_shot_path:
+            selected_script_path = os.path.join(
+                self.selected_shot_path, "comp", "nuke", selected_script_name
+            )
+            if os.path.exists(selected_script_path):
+                self.selected_script_path = selected_script_path
+            else:
+                self.selected_script_path = None
+        else:
+            self.selected_script_path = None
 
 
 
@@ -585,17 +605,47 @@ class ProjectBrowser(QWidget):
 
     def populateScriptsModel(self, selected_shot_path):
         self.scripts_model.clear()
-      
+        self.scripts_model.setHorizontalHeaderLabels(["Scripts"])
+
         nk_files = []
         for root, dirs, files in os.walk(selected_shot_path):
             for file in files:
-                if file.endswith('.nk'):
+                if file.endswith(".nk"):
                     nk_files.append(os.path.join(root, file))
-    
+
+        groups = {}
         for file_path in nk_files:
             file_name = os.path.basename(file_path)
-            item = QStandardItem(file_name)
-            self.scripts_model.appendRow(item)
+            if "_v" in file_name:
+                base, ver = file_name.rsplit("_v", 1)
+                ver_num = int(ver.split(".")[0])
+                groups.setdefault(base, []).append((ver_num, file_name, file_path))
+            else:
+                groups.setdefault(file_name, []).append((0, file_name, file_path))
+
+        for base, versions in groups.items():
+            versions.sort(key=lambda x: x[0], reverse=True)
+            highest_version = versions[0][0]
+
+            # Parent item → bold + suffix with -v###
+            parent_item = QStandardItem(f"{base} - v{str(highest_version).zfill(3)}")
+            font = QFont()
+            font.setBold(True)
+            parent_item.setFont(font)
+            parent_item.setEditable(False)
+            parent_item.setSelectable(True)
+
+            # Add children (all versions)
+            for ver, fname, fpath in versions:
+                child = QStandardItem(fname)
+                child.setEditable(False)
+                child.setData(fpath, Qt.UserRole)  # store absolute file path
+                parent_item.appendRow(child)
+
+            self.scripts_model.appendRow(parent_item)
+
+        #self.scripts.expandAll()
+
 
 
 
@@ -785,44 +835,7 @@ class ProjectBrowser(QWidget):
 
 
 
-    def createNewScript(self, shot_name, task, assignment, version_str, dialog):
-        if not shot_name or not task or not assignment or not version_str:
-            QMessageBox.warning(self, "Invalid Input", "All fields must be filled.")
-            return
     
-        try:
-            version = int(version_str)
-        except ValueError:
-            QMessageBox.warning(self, "Invalid Version", "Version must be an integer.")
-            return
-    
-        script_dir = os.path.join(self.selected_shot_path, "comp", "nuke")
-        if not os.path.exists(script_dir):
-            try:
-                os.makedirs(script_dir)
-            except OSError as e:
-                QMessageBox.warning(self, "Directory Creation Failed", f"Failed to create directory '{script_dir}': {e}")
-                dialog.reject()
-                return
-    
-        while True:
-            script_name = f"{shot_name}_{task}_{assignment}_v{version:03d}.nk"
-            script_path = os.path.join(script_dir, script_name)
-            if not os.path.exists(script_path):
-                break
-            version += 1
-    
-        # Create an empty script file or template
-        try:
-            with open(script_path, 'w') as f:
-                f.write("# New Script Created")
-            self.selected_script_path = script_path  # Set the selected script path
-            self.populateScriptsModel(self.selected_shot_path)  # Refresh the script list
-            self.openScript()  # Open the newly created script
-        except IOError as e:
-            QMessageBox.warning(self, "Creation Failed", f"Failed to create script: {e}")
-        finally:
-            dialog.accept()
 
 
 
