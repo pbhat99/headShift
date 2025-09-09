@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 import shutil
@@ -10,6 +11,68 @@ from PySide2.QtWidgets import *
 from PySide2.QtCore import *
 # from PySide2.QtWidgets import QTreeView
 # from PySide2.QtGui import QStandardItemModel
+
+import re
+
+class ImageSequenceProxyModel(QSortFilterProxyModel):
+    def __init__(self, parent=None):
+        super(ImageSequenceProxyModel, self).__init__(parent)
+        self._sequences = {}
+
+    def setSourceModel(self, sourceModel):
+        super(ImageSequenceProxyModel, self).setSourceModel(sourceModel)
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        source_index = self.sourceModel().index(source_row, 0, source_parent)
+        file_path = self.sourceModel().filePath(source_index)
+        file_name = self.sourceModel().fileName(source_index)
+
+        # Show directories
+        if self.sourceModel().isDir(source_index):
+            return True
+
+        # Check if it's part of a sequence
+        match = re.match(r'(.+?)[._](\d+)\.(.+)', file_name)
+        if not match:
+            return True  # Not a sequence file
+
+        base_name, frame_str, ext = match.groups()
+        frame = int(frame_str)
+
+        seq_key = (os.path.dirname(file_path), f"{base_name}.%0{len(frame_str)}d.{ext}")
+
+        if seq_key not in self._sequences:
+            self._sequences[seq_key] = {'frames': set(), 'min': float('inf'), 'max': float('-inf'), 'first_path': None}
+
+        if frame not in self._sequences[seq_key]['frames']:
+            self._sequences[seq_key]['frames'].add(frame)
+            if frame < self._sequences[seq_key]['min']:
+                self._sequences[seq_key]['min'] = frame
+                self._sequences[seq_key]['first_path'] = file_path
+            if frame > self._sequences[seq_key]['max']:
+                self._sequences[seq_key]['max'] = frame
+
+        # Only show the first frame of the sequence
+        return file_path == self._sequences[seq_key]['first_path']
+
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            source_index = self.mapToSource(index)
+            file_path = self.sourceModel().filePath(source_index)
+            file_name = self.sourceModel().fileName(source_index)
+
+            match = re.match(r'(.+?)[._](\d+)\.(.+)', file_name)
+            if match:
+                base_name, frame_str, ext = match.groups()
+                seq_key = (os.path.dirname(file_path), f"{base_name}.%0{len(frame_str)}d.{ext}")
+
+                if seq_key in self._sequences:
+                    seq_info = self._sequences[seq_key]
+                    if file_path == seq_info['first_path']:
+                        return f"{base_name}.[{seq_info['min']}-{seq_info['max']}].{ext}"
+
+        return super(ImageSequenceProxyModel, self).data(index, role)
 
 class ProjectBrowser(QWidget):
     appName = 'browser'
@@ -236,7 +299,7 @@ class ProjectBrowser(QWidget):
 
         # --- Select script in Scripts panel ---
         script_model = self.scripts.model()
-        script_matches = script_model.match(script_model.index(0, 0), Qt.DisplayRole, script_name, hits=1, flags=Qt.MatchExactly)
+        script_matches = script_model.match(script_model.index(0, 0), Qt.DisplayRole, script_name, hits=1, flags=Qt.MatchExactly | Qt.MatchRecursive)
         if script_matches:
             idx = script_matches[0]
             self.scripts.setCurrentIndex(idx)
@@ -336,9 +399,9 @@ class ProjectBrowser(QWidget):
             return
     
         subfolders = [
-            "comp", "dmp", "fx", "gfx", "lay", "lgt", "mm", "paint", "roto",
-            "comp/ae", "comp/fu", "comp/mocha", "comp/nuke",
-            "comp/render", "comp/render/comp", "comp/render/precomp",
+            "Photoshop", "maya", "blender", "ae", "mocha", "nuke",
+            "render", "render/comp", "render/precomp", "render/paint", "render/roto",
+            "Exports", "Exports/cam", "Exports/geo", "Exports/lensDistort",
         ]
 
         for reel in os.listdir(plates_dir):
@@ -402,7 +465,7 @@ class ProjectBrowser(QWidget):
         reel_name = self.reels_model.itemFromIndex(reel_index).text()
         reel_path = os.path.join(self.projectPath.text(), "04_shots", reel_name)
 
-        template_path = os.path.join(reel_path, "_TEMPLATE", "comp", "nuke")
+        template_path = os.path.join(reel_path, "_TEMPLATE", "nuke")
         self.ensure_directory_exists(template_path)
 
         template_script = os.path.join(template_path, "template_v001.nk")
@@ -553,7 +616,7 @@ class ProjectBrowser(QWidget):
         selected_reel = self.reels.currentIndex().data()
         self.selected_shot_path = os.path.join(self.projectPath.text(), "04_shots", selected_reel, selected_shot)
         self.populateScriptsModel(self.selected_shot_path)
-        self.updateSourceTabs(self.projectPath.text(), self.selected_shot_path)
+        self.updateSourceTabs(self.projectPath.text(), self.selected_shot_path, selected_reel)
 
 
 
@@ -564,38 +627,32 @@ class ProjectBrowser(QWidget):
     def scriptSelected(self, current, previous=None):
         """Handle script selection. If a group is clicked, auto-select latest version child."""
         if not current.isValid():
+            self.selected_script_path = None
             return
 
         item = self.scripts_model.itemFromIndex(current)
         if not item:
+            self.selected_script_path = None
             return
 
-        # In scriptSelected:
-        item = self.scripts_model.itemFromIndex(current)
-        if item and not item.hasChildren():
+        if item.hasChildren():
+            # This is a group item. Get the first child (highest version).
+            child_item = item.child(0)
+            if child_item:
+                fpath = child_item.data(Qt.UserRole)
+                if fpath and os.path.exists(fpath):
+                    self.selected_script_path = fpath
+                else:
+                    self.selected_script_path = None
+            else:
+                self.selected_script_path = None
+        else:
+            # This is a child item (a specific version).
             fpath = item.data(Qt.UserRole)
             if fpath and os.path.exists(fpath):
                 self.selected_script_path = fpath
             else:
                 self.selected_script_path = None
-
-
-        if not item:
-            return
-
-        selected_script_name = item.text()
-
-        # Build full path (this is what Locate and others rely on)
-        if hasattr(self, "selected_shot_path") and self.selected_shot_path:
-            selected_script_path = os.path.join(
-                self.selected_shot_path, "comp", "nuke", selected_script_name
-            )
-            if os.path.exists(selected_script_path):
-                self.selected_script_path = selected_script_path
-            else:
-                self.selected_script_path = None
-        else:
-            self.selected_script_path = None
 
 
 
@@ -607,11 +664,14 @@ class ProjectBrowser(QWidget):
         self.scripts_model.clear()
         self.scripts_model.setHorizontalHeaderLabels(["Scripts"])
 
+        nuke_folder_path = os.path.join(selected_shot_path, "nuke")
+        if not os.path.exists(nuke_folder_path):
+            return
+
         nk_files = []
-        for root, dirs, files in os.walk(selected_shot_path):
-            for file in files:
-                if file.endswith(".nk"):
-                    nk_files.append(os.path.join(root, file))
+        for file in os.listdir(nuke_folder_path):
+            if file.endswith(".nk"):
+                nk_files.append(os.path.join(nuke_folder_path, file))
 
         groups = {}
         for file_path in nk_files:
@@ -653,17 +713,28 @@ class ProjectBrowser(QWidget):
 
 
 
-    def updateSourceTabs(self, project_path, selected_shot_path):
+    def updateSourceTabs(self, project_path, selected_shot_path, selected_reel):
         self.src.clear()
-        self.addSourceTab(project_path, "01_plates", "plates")
 
-        subdirectories = [d for d in os.listdir(selected_shot_path) if os.path.isdir(os.path.join(selected_shot_path, d))]
-        for directory in subdirectories:
-            if directory != "comp":  # Exclude the "Comp" directory from tabs
-                self.addSourceTab(selected_shot_path, directory, directory)
+        # "all" tab
+        self.addSourceTab(os.path.dirname(selected_shot_path), os.path.basename(selected_shot_path), "all")
 
-        self.addSourceTab(os.path.join(selected_shot_path, "comp", "render"), "precomp", "precomp")
-        self.addSourceTab(os.path.join(selected_shot_path, "comp", "render"), "comp", "comp")
+        # "plates" tab
+        shot_name = os.path.basename(selected_shot_path)
+        plates_shot_folder_path = os.path.join(project_path, "01_plates", selected_reel, shot_name)
+        if os.path.exists(plates_shot_folder_path):
+            self.addSourceTab(os.path.join(project_path, "01_plates", selected_reel), shot_name, "plates")
+
+        # "render" tab
+        render_path = os.path.join(selected_shot_path, "render")
+        if os.path.exists(render_path):
+            self.addSourceTab(selected_shot_path, "render", "render")
+
+        # "Exports" tab
+        exports_path = os.path.join(selected_shot_path, "Exports")
+        if os.path.exists(exports_path):
+            self.addSourceTab(selected_shot_path, "Exports", "Exports")
+
         self.src.setCurrentIndex(0)
 
 
@@ -676,10 +747,16 @@ class ProjectBrowser(QWidget):
         tab_page = QWidget()
         tab_layout = QVBoxLayout()
         file_browser = QTreeView()
-        file_model = QFileSystemModel()
-        file_model.setRootPath(path)
-        file_browser.setModel(file_model)
-        file_browser.setRootIndex(file_model.index(os.path.join(path, directory)))
+
+        source_model = QFileSystemModel()
+        source_model.setRootPath(path)
+
+        proxy_model = ImageSequenceProxyModel()
+        proxy_model.setSourceModel(source_model)
+
+        file_browser.setModel(proxy_model)
+        file_browser.setRootIndex(proxy_model.mapFromSource(source_model.index(os.path.join(path, directory))))
+
         file_browser.setColumnWidth(0, 500)
         file_browser.setDragEnabled(True)
         file_browser.setWordWrap(False)
@@ -743,7 +820,7 @@ class ProjectBrowser(QWidget):
 
         # --- Helper: find next available version (no reel prefix) ---
         def get_next_version(task, assignment):
-            comp_path = os.path.join(self.selected_shot_path, "comp", "nuke")
+            comp_path = os.path.join(self.selected_shot_path, "nuke")
             if not os.path.exists(comp_path):
                 return 1
 
@@ -810,7 +887,7 @@ class ProjectBrowser(QWidget):
 
             shot_name = os.path.basename(self.selected_shot_path)
             filename = f"{shot_name}_{task}_{assignment}_v{version_text}.nk"
-            new_script_path = os.path.join(self.selected_shot_path, "comp", "nuke", filename)
+            new_script_path = os.path.join(self.selected_shot_path, "nuke", filename)
             self.ensure_directory_exists(os.path.dirname(new_script_path))
 
             nuke.scriptClear()
@@ -933,6 +1010,8 @@ class ProjectBrowser(QWidget):
         except IOError as e:
             QMessageBox.warning(self, "Copy Failed", f"Failed to copy script: {e}")
             return
+
+        self.populateScriptsModel(self.selected_shot_path)
     
         # Optionally, open the new script (adjust this based on your script opening logic)
         self.selected_script_path = new_script_path
@@ -963,12 +1042,21 @@ class ProjectBrowser(QWidget):
             QMessageBox.warning(self, "No Script Selected", "Please select a script to import.")
             return
 
-        selected_script_name = selected_indexes[0].data()
-        script_path = os.path.join(
-            self.selected_shot_path, "comp", "nuke", selected_script_name
-        )
+        item = self.scripts_model.itemFromIndex(selected_indexes[0])
+        if not item:
+            return
 
-        if not os.path.exists(script_path):
+        script_path = None
+        if item.hasChildren():
+            # This is a group item. Get the first child (highest version).
+            child_item = item.child(0)
+            if child_item:
+                script_path = child_item.data(Qt.UserRole)
+        else:
+            # This is a child item (a specific version).
+            script_path = item.data(Qt.UserRole)
+
+        if not script_path or not os.path.exists(script_path):
             QMessageBox.warning(self, "File Missing", f"Script not found:\n{script_path}")
             return
 
