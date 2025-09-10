@@ -8,6 +8,56 @@ from PySide2.QtWidgets import (
 )
 from PySide2.QtCore import Qt
 
+# dont use space,underscore and hifen (" ", "_" "-") which are not supported by nuke node name
+FORMAT_PRESETS = [
+    {
+        "name": "EXRzip",
+        "file_type": "exr",
+        "subfolder": True,
+        "padding": ".%04d",
+        "knobs": {
+            "compression": "ZIP",
+        }
+    },
+    {
+        "name": "EXRdwab",
+        "file_type": "exr",
+        "subfolder": True,
+        "padding": ".%05d",
+        "knobs": {
+            "autocrop": True,
+            "compression": "DWAB",
+        }
+    },
+    {
+        "name": "ProRes",
+        "file_type": "mov",
+        "subfolder": False,
+        "padding": "",
+        "knobs": {
+            "mov64_codec": "appr",
+        }
+    },
+    {
+        "name": "h264",
+        "file_type": "mov",
+        "subfolder": False,
+        "padding": "",
+        "knobs": {
+            "mov64_codec": "h264",
+        }
+    },
+    {
+        "name": "JPG",
+        "file_type": "jpeg",
+        "subfolder": True,
+        "padding": ".#####",
+        "knobs": {
+            "_jpeg_quality": "1"
+        }
+    }
+]
+
 class WriteRightDialog(QDialog):
     def __init__(self, parent=None):
         super(WriteRightDialog, self).__init__(parent)
@@ -25,10 +75,10 @@ class WriteRightDialog(QDialog):
         self.node_name_edit = QLineEdit()
         self.node_name_edit.setReadOnly(True)
         self.node_name_edit.setStyleSheet("color: yellow; font-weight: bold;")
-        row1_layout.addWidget(self.node_name_edit)
+        row1_layout.addWidget(self.node_name_edit, 2)
 
         # Task Dropdown
-        self.task_label = QLabel("Task:")
+        self.task_label = QLabel("TASK:")
         self.task_combo = QComboBox()
         self.task_combo.addItems(["Comp", "Precomp", "Prep", "Matte", "Denoise", "Retime", "Custom"])
         row1_layout.addWidget(self.task_label)
@@ -38,28 +88,28 @@ class WriteRightDialog(QDialog):
         self.custom_task_edit = QLineEdit()
         self.custom_task_edit.setPlaceholderText("Enter custom task name")
         self.custom_task_edit.hide()
-        row1_layout.addWidget(self.custom_task_edit)
+        row1_layout.addWidget(self.custom_task_edit, 2)
 
         # Format Presets Dropdown
-        self.format_label = QLabel("Format:")
+        self.format_label = QLabel("PRESET:")
         self.format_combo = QComboBox()
-        self.format_combo.addItems(["EXR", "MOV", "PNG", "JPG"]) # Dummy formats
+        self.format_combo.addItems([preset["name"] for preset in FORMAT_PRESETS])
         row1_layout.addWidget(self.format_label)
         row1_layout.addWidget(self.format_combo)
 
         # Version Editable Text
-        self.version_label = QLabel("Version:")
+        self.version_label = QLabel("VERSION:")
         self.version_edit = QLineEdit("v001") # Default version
         self.version_edit.setFixedWidth(50)
         row1_layout.addWidget(self.version_label)
         row1_layout.addWidget(self.version_edit)
 
         # Add separator and checkboxes to the first row
-        row1_layout.addSpacing(10) # Padding
+        row1_layout.addSpacing(25) # Padding
         row1_layout.addWidget(QLabel("|")) # Separator
-        row1_layout.addSpacing(10) # Padding
+        row1_layout.addSpacing(25) # Padding
 
-        self.seq_name_checkbox = QCheckBox("Seq Name")
+        self.seq_name_checkbox = QCheckBox("prefix SEQ Name")
         self.seq_name_checkbox.setChecked(True)
         self.subfolder_checkbox = QCheckBox("Subfolder")
         self.subfolder_checkbox.setChecked(True)
@@ -104,6 +154,7 @@ class WriteRightDialog(QDialog):
         self.task_combo.currentTextChanged.connect(self.update_node_name_from_task)
         self.task_combo.currentTextChanged.connect(self.update_path_preview)
         self.task_combo.currentTextChanged.connect(self.update_displayed_node_name) # New connection for task change
+        self.format_combo.currentTextChanged.connect(self.apply_format_preset) # New connection for format preset
         self.format_combo.currentTextChanged.connect(self.update_path_preview)
         self.version_edit.textChanged.connect(self.update_path_preview)
         self.seq_name_checkbox.stateChanged.connect(self.update_path_preview)
@@ -150,7 +201,60 @@ class WriteRightDialog(QDialog):
         if ext:
             self.format_combo.setCurrentText(ext[1:].upper()) # Remove dot and make uppercase
 
+
+        # Try to parse task and format from node name
+        node_name = self.selected_write_node.name()
+        # Regex to match "Write_TASK_FORMAT"
+        match = re.match(r"Write_([a-zA-Z0-9]+)_([a-zA-Z0-9]+)", node_name)
+        if match:
+            task_from_name = match.group(1)
+            format_from_name = match.group(2)
+
+            # Set task combo
+            index = self.task_combo.findText(task_from_name, Qt.MatchContains)
+            if index != -1:
+                self.task_combo.setCurrentIndex(index)
+            else:
+                # If not in predefined tasks, set to Custom and populate custom_task_edit
+                self.task_combo.setCurrentText("Custom")
+                self.custom_task_edit.setText(task_from_name)
+
+            # Set format combo based on format_from_name
+            # Need to find the preset name that matches the format_from_name (e.g., "EXR_zip" for "EXR_zip")
+            found_preset_for_name = False
+            for preset in FORMAT_PRESETS:
+                if preset["name"].lower() == format_from_name.lower():
+                    self.format_combo.setCurrentText(preset["name"])
+                    found_preset_for_name = True
+                    break
+            if not found_preset_for_name:
+                # If format from name doesn't match a preset name, try matching file_type
+                for preset in FORMAT_PRESETS:
+                    if preset["file_type"].lower() == format_from_name.lower():
+                        self.format_combo.setCurrentText(preset["name"])
+                        found_preset_for_name = True
+                        break
+
         
+
+    def apply_format_preset(self, preset_name):
+        if not self.selected_write_node:
+            return
+
+        selected_preset = None
+        for preset in FORMAT_PRESETS:
+            if preset["name"] == preset_name:
+                selected_preset = preset
+                break
+
+        if selected_preset:
+            # Set subfolder checkbox state
+            self.subfolder_checkbox.setChecked(selected_preset["subfolder"])
+
+            # Update displayed node name and path preview
+            self.update_displayed_node_name()
+            self.update_path_preview()
+
 
     def update_displayed_node_name(self):
         # Get current task
@@ -197,11 +301,24 @@ class WriteRightDialog(QDialog):
             task = self.custom_task_edit.text() # Use custom input
         task = task.lower() # Keep original case for task in path
         version = self.version_edit.text()
-        file_format = self.format_combo.currentText().lower()
+
+        # Get the selected format preset
+        selected_preset_name = self.format_combo.currentText()
+        selected_preset = None
+        for preset in FORMAT_PRESETS:
+            if preset["name"] == selected_preset_name:
+                selected_preset = preset
+                break
+
+        if not selected_preset:
+            # Fallback if preset not found (shouldn't happen if combo box is populated correctly)
+            file_extension = "exr" # Default to exr
+        else:
+            file_extension = selected_preset["file_type"]
 
         # The base node name for path generation should be 'Write_taskname_formatname'
         # This is consistent with the displayed node name.
-        base_node_name_for_path = f"Write_{task}_{file_format.upper()}" # Use task and format for path node name
+        base_node_name_for_path = f"Write_{task}_{selected_preset_name.upper()}" # Use task and format for path node name
         node_name = base_node_name_for_path # This is the 'node_name' for the path
 
         # Get checkbox states
@@ -213,11 +330,8 @@ class WriteRightDialog(QDialog):
             self.path_preview_edit.setText("Nuke script not saved. Cannot generate path.")
             return
 
-        # Example script path: /testProject/04_shots/ Timelapse/TL01/nuke/TL01_comp_face_v009.nk
-        # Desired output: /testProject/04_shots/Timelapse/TL01/RENDER/ Timelapse_TL01_Taskname_v009.#####.exr
-
         # Normalize path for consistent splitting
-        script_path = script_path.replace("/", "/")
+        script_path = script_path.replace("\\", "/")
 
         # Split the path into components
         path_parts = script_path.split('/')
@@ -229,15 +343,12 @@ class WriteRightDialog(QDialog):
             shot_path_parts = path_parts[:nuke_dir_index]
             shot_path = '/'.join(shot_path_parts)
 
-            # Extract project name (e.g., 'Timelapse') - assuming it's the parent of the shot folder
-            # This assumes a structure like .../ProjectName/ShotName/nuke/...
             project_name = shot_path_parts[-2] if len(shot_path_parts) >= 2 else "unknown_project"
             
-            # Extract shot name (e.g., 'TL01')
+
             shot_name = shot_path_parts[-1] if len(shot_path_parts) >= 1 else "unknown_shot"
 
         except ValueError:
-            # 'nuke' directory not found in path, fall back to a simpler structure or error
             self.path_preview_edit.setText("Could not parse script path for project/shot structure.")
             return
         except IndexError:
@@ -247,7 +358,6 @@ class WriteRightDialog(QDialog):
         # Construct the RENDER directory path
         render_base_dir = os.path.join(shot_path, "RENDER").replace("\\", "/")
         
-        # Ensure version is in 'vXXX' format (moved this up)
         version_clean = version.lstrip('vV')
         if not version_clean.isdigit():
             version_clean = "001" # Fallback if version is not numeric
@@ -266,7 +376,7 @@ class WriteRightDialog(QDialog):
             render_dir = os.path.join(render_base_dir, base_file_name).replace("\\", "/")
 
         # Always include frame padding
-        file_name = f"{base_file_name}.#####.{file_format}"
+        file_name = f"{base_file_name}{selected_preset['padding']}.{file_extension}"
         
         full_output_path = os.path.join(render_dir, file_name).replace("\\", "/")
         
@@ -278,19 +388,49 @@ class WriteRightDialog(QDialog):
             QMessageBox.warning(self, "No Node Selected", "Please select a Write node in Nuke.")
             return
 
-        new_node_name = self.node_name_edit.text()
+        # Get the selected format preset
+        selected_preset_name = self.format_combo.currentText()
+        selected_preset = None
+        for preset in FORMAT_PRESETS:
+            if preset["name"] == selected_preset_name:
+                selected_preset = preset
+                break
+
+        if not selected_preset:
+            QMessageBox.critical(self, "Error", "Selected format preset not found.")
+            return
+
+        # Get the displayed node name (Write_taskname_formatname)
+        new_node_name_display = self.node_name_edit.text()
         new_file_path = self.path_preview_edit.text()
 
         try:
-            # Update node name if changed
-            if self.selected_write_node.name() != new_node_name:
-                self.selected_write_node.setName(new_node_name)
+            # Set the file type on the Write node
+            self.selected_write_node['file_type'].setValue(selected_preset["file_type"])
 
             # Update file path
             self.selected_write_node['file'].setValue(new_file_path)
-            self.close()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to update Write node: {e}")
+
+            # Apply knobs from selected preset
+            for knob_name, knob_value in selected_preset["knobs"].items():
+                try:
+                    # Special handling for mov64_write_codec for Nuke 13+
+                    if knob_name == "mov64_write_codec":
+                        self.selected_write_node["codec"].setValue(knob_value)
+                    else:
+                        self.selected_write_node[knob_name].setValue(knob_value)
+                except Exception as e:
+                    print(f"Warning: Could not set knob '{knob_name}' on Write node: {e}")
+
+            # Update node name
+            self.selected_write_node.setName(new_node_name_display)
+
+            # Update node name
+            self.selected_write_node.setName(new_node_name_display)
+
+            self.accept() # Close dialog on success
+        except:
+            print ('cant update node name')
 
 def show_write_right_dialog():
     selected_nodes = nuke.selectedNodes()
@@ -299,10 +439,12 @@ def show_write_right_dialog():
     target_node = None
 
     if not write_nodes:
+        print("No Write node selected. Creating a new Write node.")
         target_node = nuke.createNode('Write')
     else:
+        # Write node(s) selected
         if len(write_nodes) > 1:
-            QMessageBox.information(None, "Multiple Write Nodes Selected", "Multiple Write nodes selected. Using the first one found.")
+            print("Multiple Write nodes selected. Using the first one found.")
         target_node = write_nodes[0]
     
     if target_node:
