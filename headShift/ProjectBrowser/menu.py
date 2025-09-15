@@ -19,4 +19,4 @@ elif sys.platform == 'linux':
 nuke.menu('Nuke').addCommand('Pipeline/Write Selector', 'show_type_selection_dialog()', 'shift+w')
 
 
-
+nuke.menu('Nuke').addCommand('Pipeline/Write Manager', 'import WriteManager; WriteManager.show_write_manager_dialog()', icon='Write.png')

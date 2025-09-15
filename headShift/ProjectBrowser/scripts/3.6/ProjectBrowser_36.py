@@ -329,10 +329,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
-
     def createNewProject(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("Create New Project")
@@ -396,7 +392,6 @@ class ProjectBrowser(QWidget):
         
         dialog.accept()
         self.refresh()  # Refresh the list of projects to include the new project
-
 
 
 
@@ -473,11 +468,6 @@ class ProjectBrowser(QWidget):
 
 
 
-    
-
-
-
-
 
     def browseProjectFolder(self):
         
@@ -487,8 +477,6 @@ class ProjectBrowser(QWidget):
         if self.ProjectsPath:
             self.ProjectsFolderPath.setText(self.ProjectsPath)
         self.refresh()
-
-
 
 
 
@@ -557,9 +545,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
     def refresh(self):
         self.ProjectsFolderPath.setText(self.ProjectsPath)
         self.projects_model.clear()
@@ -590,8 +575,6 @@ class ProjectBrowser(QWidget):
                 "Directory Not Found",
                 f"The projects directory '{self.ProjectsPath}' does not exist."
             )
-
-
 
 
 
@@ -679,8 +662,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
     def shotSelected(self, index):
         shot_item = self.shots_model.itemFromIndex(index)
         selected_shot = shot_item.text()
@@ -688,8 +669,6 @@ class ProjectBrowser(QWidget):
         self.selected_shot_path = os.path.join(self.projectPath.text(), "04_shots", selected_reel, selected_shot)
         self.populateScriptsModel(self.selected_shot_path)
         self.updateSourceTabs(self.projectPath.text(), self.selected_shot_path, selected_reel)
-
-
 
 
 
@@ -724,8 +703,6 @@ class ProjectBrowser(QWidget):
                 self.selected_script_path = fpath
             else:
                 self.selected_script_path = None
-
-
 
 
 
@@ -780,10 +757,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
-
     def updateSourceTabs(self, project_path, selected_shot_path, selected_reel):
         current_tab_index = self.src.currentIndex()
         self.src.clear()
@@ -815,7 +788,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
     def addSourceTab(self, path, directory, tab_name):
         tab_page = QWidget()
         tab_layout = QVBoxLayout()
@@ -836,8 +808,6 @@ class ProjectBrowser(QWidget):
         tab_layout.addWidget(file_browser)
         tab_page.setLayout(tab_layout)
         self.src.addTab(tab_page, tab_name)
-
-
 
 
 
@@ -977,18 +947,7 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
     
-
-
-
-
-
-    
-
-
-
 
 
 
@@ -1042,10 +1001,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
-
     def versionScript(self):
         if not self.selected_script_path:
             QMessageBox.warning(self, "No Script Selected", "Please select a script to version up.")
@@ -1093,17 +1048,11 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
-
     def copyNodesFromScript(self):
         if os.path.exists(self.selected_script_path):
             nuke.nodePaste(self.selected_script_path)
         else:
             QMessageBox.warning(self, "Script Not Found", f"The selected script '{self.selected_script_path}' does not exist.")
-
-
 
 
 
@@ -1172,14 +1121,6 @@ class ProjectBrowser(QWidget):
 
 
 
-
-
-
-
-
-
-
-
 # Create and show the custom UI
 custom_ui = ProjectBrowser()
 
@@ -1191,8 +1132,6 @@ x = (screen_geometry.width() - desired_width) / 2 - 600
 y = (screen_geometry.height() - desired_height) / 2
 # Adjust the minimum size of the dialog's inner layout
 custom_ui.setGeometry(x, y, desired_width, desired_height)
-
-
 
 
 

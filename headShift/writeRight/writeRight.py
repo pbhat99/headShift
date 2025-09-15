@@ -72,10 +72,9 @@ class WriteRightDialog(QDialog):
         row1_layout = QHBoxLayout()
 
         # Node Name
-        self.node_name_edit = QLineEdit()
-        self.node_name_edit.setReadOnly(True)
-        self.node_name_edit.setStyleSheet("color: yellow; font-weight: bold;")
-        row1_layout.addWidget(self.node_name_edit, 2)
+        self.node_name_label = QLabel()
+        self.node_name_label.setStyleSheet("color: teal; font-weight: bold; font-size: 12pt;")
+        row1_layout.addWidget(self.node_name_label, 2)
 
         # Task Dropdown
         self.task_label = QLabel("TASK:")
@@ -104,36 +103,34 @@ class WriteRightDialog(QDialog):
         row1_layout.addWidget(self.version_label)
         row1_layout.addWidget(self.version_edit)
 
-        # Add separator and checkboxes to the first row
-        row1_layout.addSpacing(25) # Padding
-        row1_layout.addWidget(QLabel("|")) # Separator
-        row1_layout.addSpacing(25) # Padding
-
-        self.seq_name_checkbox = QCheckBox("prefix SEQ Name")
-        self.seq_name_checkbox.setChecked(True)
-        self.subfolder_checkbox = QCheckBox("Subfolder")
-        self.subfolder_checkbox.setChecked(True)
-
-        row1_layout.addWidget(self.seq_name_checkbox)
-        row1_layout.addWidget(self.subfolder_checkbox)
         row1_layout.addStretch(1) # Push elements to the left
 
         main_layout.addLayout(row1_layout)
 
         # Row 2: Output File Path Preview
         row2_layout = QHBoxLayout()
-        # self.path_preview_label = QLabel("Output Path:") # Removed label
-        self.path_preview_edit = QLineEdit("C:/path/to/output/file_v001.exr") # Dummy path
-        self.path_preview_edit.setReadOnly(True)
-        # row2_layout.addWidget(self.path_preview_label) # Removed label
+        self.path_preview_label = QLabel("Output Path:") # Removed label
+        self.path_preview_edit = QLabel("C:/path/to/output/file_v001.exr") # Dummy path
+        self.path_preview_edit.setStyleSheet("color: cyan; font-weight: bold;")
+        #self.path_preview_edit.setReadOnly(True)
+        row2_layout.addWidget(self.path_preview_label) # Removed label
         row2_layout.addWidget(self.path_preview_edit)
+        row2_layout.addStretch(1)
         main_layout.addLayout(row2_layout)
 
         # Row 3: Save and Cancel Buttons
         row3_layout = QHBoxLayout()
+        self.seq_name_checkbox = QCheckBox("prefix SEQ Name")
+        self.seq_name_checkbox.setChecked(True)
+        self.subfolder_checkbox = QCheckBox("Subfolder")
+        self.subfolder_checkbox.setChecked(True)
+
+        row3_layout.addWidget(self.seq_name_checkbox)
+
+        row3_layout.addWidget(self.subfolder_checkbox)
+        row3_layout.addStretch(1) # Pushes buttons to the right and checkboxes to the left
         self.save_button = QPushButton("Save")
         self.cancel_button = QPushButton("Cancel")
-        row3_layout.addStretch(1) # Pushes buttons to the right
         row3_layout.addWidget(self.save_button)
         row3_layout.addWidget(self.cancel_button)
         main_layout.addLayout(row3_layout)
@@ -142,7 +139,7 @@ class WriteRightDialog(QDialog):
         # Set initial width to 75% of screen width, and allow scaling
         screen = QApplication.primaryScreen()
         screen_width = screen.geometry().width()
-        self.setMinimumWidth(int(screen_width * 0.75))
+        self.setMinimumWidth(int(screen_width * 0.5))
 
         # Connect signals to slots
         self.save_button.clicked.connect(self.save_changes)
@@ -156,7 +153,7 @@ class WriteRightDialog(QDialog):
         self.task_combo.currentTextChanged.connect(self.update_displayed_node_name) # New connection for task change
         self.format_combo.currentTextChanged.connect(self.apply_format_preset) # New connection for format preset
         self.format_combo.currentTextChanged.connect(self.update_path_preview)
-        self.version_edit.textChanged.connect(self.update_path_preview)
+        self.version_edit.textChanged.connect(self.update_path_preview) # This line should be textChanged for QLineEdit
         self.seq_name_checkbox.stateChanged.connect(self.update_path_preview)
         self.subfolder_checkbox.stateChanged.connect(self.update_path_preview)
         self.custom_task_edit.textChanged.connect(self.update_path_preview) # New connection for custom input changes
@@ -180,7 +177,7 @@ class WriteRightDialog(QDialog):
             self.update_path_preview()
         else:
             self.setWindowTitle("WriteRight - No Node Selected")
-            self.node_name_edit.clear()
+            self.node_name_label.clear()
             self.path_preview_edit.clear()
 
     def parse_path_for_initial_values(self, path):
@@ -192,7 +189,7 @@ class WriteRightDialog(QDialog):
         # Try to extract version
         version_match = re.search(r'_v(\d+)', name)
         if version_match:
-            self.version_edit.setText(f"v{int(version_match.group(1)):03d}")
+            self.version_edit.setText(f"v{int(version_match.group(1)):03d}") # This line should be setText for QLineEdit
             name_without_version = name[:version_match.start()]
         else:
             name_without_version = name
@@ -267,7 +264,7 @@ class WriteRightDialog(QDialog):
 
         # Construct displayed name as Write_taskname_formatname
         displayed_name = f"Write_{task}_{current_format}"
-        self.node_name_edit.setText(displayed_name)
+        self.node_name_label.setText(displayed_name)
 
 
     def toggle_custom_task_input(self, text):
@@ -300,7 +297,7 @@ class WriteRightDialog(QDialog):
         if task == "Custom":
             task = self.custom_task_edit.text() # Use custom input
         task = task.lower() # Keep original case for task in path
-        version = self.version_edit.text()
+        version = self.version_edit.text() # QLineEdit will return "v001"
 
         # Get the selected format preset
         selected_preset_name = self.format_combo.currentText()
@@ -401,7 +398,7 @@ class WriteRightDialog(QDialog):
             return
 
         # Get the displayed node name (Write_taskname_formatname)
-        new_node_name_display = self.node_name_edit.text()
+        new_node_name_display = self.node_name_label.text()
         new_file_path = self.path_preview_edit.text()
 
         try:
@@ -421,9 +418,6 @@ class WriteRightDialog(QDialog):
                         self.selected_write_node[knob_name].setValue(knob_value)
                 except Exception as e:
                     print(f"Warning: Could not set knob '{knob_name}' on Write node: {e}")
-
-            # Update node name
-            self.selected_write_node.setName(new_node_name_display)
 
             # Update node name
             self.selected_write_node.setName(new_node_name_display)
