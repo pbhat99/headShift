@@ -378,10 +378,6 @@ class ProjectBrowser(QWidget):
                 '03_elements',
                 '04_shots',
                 '05_final',
-                '00_docs/brief',
-                '00_docs/notes',
-                '00_docs/storyboard',
-                '00_docs/tech',
             ]
             for subfolder in subfolders:
                 os.makedirs(os.path.join(new_project_path, subfolder))
@@ -413,9 +409,9 @@ class ProjectBrowser(QWidget):
             return
     
         subfolders = [
-            "Photoshop", "maya", "blender", "ae", "mocha", "nuke",
-            "render", "render/comp", "render/precomp", "render/paint", "render/roto",
-            "Exports", "Exports/cam", "Exports/geo", "Exports/lensDistort",
+            "Nuke", "Blender",
+            "RENDER", "CG_RENDER", "etc"
+            "EXPORT",
         ]
 
         def create_shot_structure(reel_dir, shot_name):

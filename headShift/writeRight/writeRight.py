@@ -8,61 +8,96 @@ from PySide2.QtWidgets import (
 )
 from PySide2.QtCore import Qt
 
-# dont use space,underscore and hifen (" ", "_" "-") which are not supported by nuke node name
-FORMAT_PRESETS = [
-    {
-        "name": "EXRzip",
-        "file_type": "exr",
-        "subfolder": True,
-        "padding": ".%04d",
-        "knobs": {
-            "compression": "ZIP",
+# dont use space,underscore and hifen (" ", "_", "-") which are not supported by nuke node name
+ALL_PRESETS = {
+    "Write": [
+        {
+            "name": "EXRzip",
+            "file_type": "exr",
+            "subfolder": True,
+            "padding": ".%04d",
+            "knobs": {
+                "compression": "ZIP",
+            }
+        },
+        {
+            "name": "EXRdwab",
+            "file_type": "exr",
+            "subfolder": True,
+            "padding": ".%05d",
+            "knobs": {
+                "autocrop": True,
+                "compression": "DWAB",
+            }
+        },
+        {
+            "name": "ProRes",
+            "file_type": "mov",
+            "subfolder": False,
+            "padding": "",
+            "knobs": {
+                "mov64_codec": "appr",
+            }
+        },
+        {
+            "name": "h264",
+            "file_type": "mov",
+            "subfolder": False,
+            "padding": "",
+            "knobs": {
+                "mov64_codec": "h264",
+            }
+        },
+        {
+            "name": "JPG",
+            "file_type": "jpeg",
+            "subfolder": True,
+            "padding": ".#####",
+            "knobs": {
+                "_jpeg_quality": "1"
+            }
         }
-    },
-    {
-        "name": "EXRdwab",
-        "file_type": "exr",
-        "subfolder": True,
-        "padding": ".%05d",
-        "knobs": {
-            "autocrop": True,
-            "compression": "DWAB",
+    ],
+    "WriteGeo": [
+        {
+            "name": "Alembic",
+            "file_type": "abc",
+            "subfolder": False,
+            "padding": "",
+            "knobs": {
+                "storageFormat": "Ogawa"
+            }
+        },
+        {
+            "name": "FBX",
+            "file_type": "fbx",
+            "subfolder": False,
+            "padding": "",
+            "knobs": {}
         }
-    },
-    {
-        "name": "ProRes",
-        "file_type": "mov",
-        "subfolder": False,
-        "padding": "",
-        "knobs": {
-            "mov64_codec": "appr",
-        }
-    },
-    {
-        "name": "h264",
-        "file_type": "mov",
-        "subfolder": False,
-        "padding": "",
-        "knobs": {
-            "mov64_codec": "h264",
-        }
-    },
-    {
-        "name": "JPG",
-        "file_type": "jpeg",
-        "subfolder": True,
-        "padding": ".#####",
-        "knobs": {
-            "_jpeg_quality": "1"
-        }
-    }
-]
+    ],
+    "DeepWrite": [
+        {
+            "name": "EXRdeep",
+            "file_type": "exr",
+            "subfolder": True,
+            "padding": ".%04d",
+            "knobs": {}
+        },
+    ]
+}
+
+TASK_LISTS = {
+    "default": ["Comp", "Precomp", "Prep", "Matte", "Denoise", "Retime", "Custom"],
+    "WriteGeo": ["Scene", "Geo", "Cam", "Custom"]
+}
 
 class WriteRightDialog(QDialog):
     def __init__(self, parent=None):
         super(WriteRightDialog, self).__init__(parent)
         self.setWindowTitle("WriteRight - No Node Selected") # Placeholder title
         self.selected_write_node = None
+        self.node_class = None
         self.initUI()
 
     def initUI(self):
@@ -79,7 +114,7 @@ class WriteRightDialog(QDialog):
         # Task Dropdown
         self.task_label = QLabel("TASK:")
         self.task_combo = QComboBox()
-        self.task_combo.addItems(["Comp", "Precomp", "Prep", "Matte", "Denoise", "Retime", "Custom"])
+        self.task_combo.addItems([]) # Initially empty
         row1_layout.addWidget(self.task_label)
         row1_layout.addWidget(self.task_combo)
 
@@ -92,7 +127,7 @@ class WriteRightDialog(QDialog):
         # Format Presets Dropdown
         self.format_label = QLabel("PRESET:")
         self.format_combo = QComboBox()
-        self.format_combo.addItems([preset["name"] for preset in FORMAT_PRESETS])
+        self.format_combo.addItems([]) # Initially empty, populated based on node type
         row1_layout.addWidget(self.format_label)
         row1_layout.addWidget(self.format_combo)
 
@@ -163,9 +198,10 @@ class WriteRightDialog(QDialog):
     def set_write_node(self, node):
         self.selected_write_node = node
         if self.selected_write_node:
-            self.setWindowTitle(f"WriteRight - {self.selected_write_node.name()}") # Keep original title for now
-            # self.original_node_name is no longer stored here
-            # self.node_name_edit.setText(self.original_node_name) is handled by update_displayed_node_name
+            self.node_class = self.selected_write_node.Class()
+            self.setWindowTitle(f"WriteRight - {self.selected_write_node.name()} ({self.node_class})")
+            self.update_format_combo()
+            self.update_task_combo()
 
             # Attempt to parse existing path for initial values
             self.parse_path_for_initial_values(self.selected_write_node['file'].value())
@@ -179,6 +215,17 @@ class WriteRightDialog(QDialog):
             self.setWindowTitle("WriteRight - No Node Selected")
             self.node_name_label.clear()
             self.path_preview_edit.clear()
+
+    def update_task_combo(self):
+        self.task_combo.clear()
+        tasks = TASK_LISTS.get(self.node_class, TASK_LISTS["default"])
+        self.task_combo.addItems(tasks)
+
+    def update_format_combo(self):
+        self.format_combo.clear()
+        presets = ALL_PRESETS.get(self.node_class, [])
+        preset_names = [preset["name"] for preset in presets]
+        self.format_combo.addItems(preset_names)
 
     def parse_path_for_initial_values(self, path):
         # This is a simplified parser. A robust one would handle more cases.
@@ -219,14 +266,15 @@ class WriteRightDialog(QDialog):
             # Set format combo based on format_from_name
             # Need to find the preset name that matches the format_from_name (e.g., "EXR_zip" for "EXR_zip")
             found_preset_for_name = False
-            for preset in FORMAT_PRESETS:
+            presets = ALL_PRESETS.get(self.node_class, [])
+            for preset in presets:
                 if preset["name"].lower() == format_from_name.lower():
                     self.format_combo.setCurrentText(preset["name"])
                     found_preset_for_name = True
                     break
             if not found_preset_for_name:
                 # If format from name doesn't match a preset name, try matching file_type
-                for preset in FORMAT_PRESETS:
+                for preset in presets:
                     if preset["file_type"].lower() == format_from_name.lower():
                         self.format_combo.setCurrentText(preset["name"])
                         found_preset_for_name = True
@@ -238,8 +286,9 @@ class WriteRightDialog(QDialog):
         if not self.selected_write_node:
             return
 
+        presets = ALL_PRESETS.get(self.node_class, [])
         selected_preset = None
-        for preset in FORMAT_PRESETS:
+        for preset in presets:
             if preset["name"] == preset_name:
                 selected_preset = preset
                 break
@@ -301,8 +350,9 @@ class WriteRightDialog(QDialog):
 
         # Get the selected format preset
         selected_preset_name = self.format_combo.currentText()
+        presets = ALL_PRESETS.get(self.node_class, [])
         selected_preset = None
-        for preset in FORMAT_PRESETS:
+        for preset in presets:
             if preset["name"] == selected_preset_name:
                 selected_preset = preset
                 break
@@ -353,7 +403,10 @@ class WriteRightDialog(QDialog):
             return
 
         # Construct the RENDER directory path
-        render_base_dir = os.path.join(shot_path, "RENDER").replace("\\", "/")
+        if self.node_class == 'WriteGeo':
+            render_base_dir = os.path.join(shot_path, "Exports").replace("\\", "/")
+        else:
+            render_base_dir = os.path.join(shot_path, "RENDER").replace("\\", "/")
         
         version_clean = version.lstrip('vV')
         if not version_clean.isdigit():
@@ -382,13 +435,14 @@ class WriteRightDialog(QDialog):
 
     def save_changes(self):
         if not self.selected_write_node:
-            QMessageBox.warning(self, "No Node Selected", "Please select a Write node in Nuke.")
+            QMessageBox.warning(self, "No Node Selected", "Please select a supported node in Nuke.")
             return
 
         # Get the selected format preset
         selected_preset_name = self.format_combo.currentText()
+        presets = ALL_PRESETS.get(self.node_class, [])
         selected_preset = None
-        for preset in FORMAT_PRESETS:
+        for preset in presets:
             if preset["name"] == selected_preset_name:
                 selected_preset = preset
                 break
@@ -403,7 +457,8 @@ class WriteRightDialog(QDialog):
 
         try:
             # Set the file type on the Write node
-            self.selected_write_node['file_type'].setValue(selected_preset["file_type"])
+            if self.node_class in ['Write', 'DeepWrite']:
+                self.selected_write_node['file_type'].setValue(selected_preset["file_type"])
 
             # Update file path
             self.selected_write_node['file'].setValue(new_file_path)
@@ -411,34 +466,34 @@ class WriteRightDialog(QDialog):
             # Apply knobs from selected preset
             for knob_name, knob_value in selected_preset["knobs"].items():
                 try:
-                    # Special handling for mov64_write_codec for Nuke 13+
-                    if knob_name == "mov64_write_codec":
+                    # Special handling for mov64_codec for Nuke 13+
+                    if knob_name == "mov64_codec" and self.node_class == 'Write':
                         self.selected_write_node["codec"].setValue(knob_value)
-                    else:
+                    elif self.node_class in ['Write', 'DeepWrite']:
                         self.selected_write_node[knob_name].setValue(knob_value)
                 except Exception as e:
-                    print(f"Warning: Could not set knob '{knob_name}' on Write node: {e}")
+                    print(f"Warning: Could not set knob '{knob_name}' on {self.node_class} node: {e}")
 
             # Update node name
             self.selected_write_node.setName(new_node_name_display)
 
             self.accept() # Close dialog on success
-        except:
-            print ('cant update node name')
+        except Exception as e:
+            print(f'Could not update node properties: {e}')
 
 def show_write_right_dialog():
     selected_nodes = nuke.selectedNodes()
-    write_nodes = [node for node in selected_nodes if node.Class() == 'Write']
+    write_nodes = [node for node in selected_nodes if node.Class() in ['Write', 'WriteGeo', 'DeepWrite']]
     
     target_node = None
 
     if not write_nodes:
-        print("No Write node selected. Creating a new Write node.")
+        # For now, default to creating a Write node. A future improvement could be to ask the user.
+        print("No Write, WriteGeo, or DeepWrite node selected. Creating a new Write node.")
         target_node = nuke.createNode('Write')
     else:
-        # Write node(s) selected
         if len(write_nodes) > 1:
-            print("Multiple Write nodes selected. Using the first one found.")
+            print("Multiple nodes selected. Using the first one found.")
         target_node = write_nodes[0]
     
     if target_node:
