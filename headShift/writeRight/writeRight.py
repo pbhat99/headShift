@@ -385,7 +385,7 @@ class WriteRightDialog(QDialog):
 
         # Find the 'nuke' directory to determine the shot path
         try:
-            nuke_dir_index = path_parts.index('nuke')
+            nuke_dir_index = path_parts.index('Nuke')
             # The shot path is everything up to 'nuke'
             shot_path_parts = path_parts[:nuke_dir_index]
             shot_path = '/'.join(shot_path_parts)
@@ -396,10 +396,10 @@ class WriteRightDialog(QDialog):
             shot_name = shot_path_parts[-1] if len(shot_path_parts) >= 1 else "unknown_shot"
 
         except ValueError:
-            self.path_preview_edit.setText("Could not parse script path for project/shot structure.")
+            self.path_preview_edit.setText("ValueError : Could not parse script path for project/shot structure.")
             return
         except IndexError:
-            self.path_preview_edit.setText("Could not determine project/shot name from script path.")
+            self.path_preview_edit.setText("IndexError : Could not determine project/shot name from script path.")
             return
 
         # Construct the RENDER directory path
